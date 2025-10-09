@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simple Password Vault</title>
+  <style>
+    :root{--bg:#ffffff;--muted:#6b7280;--card:#f3f4f6;--accent:#111827}
+    *{box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;line-height:1.35;margin:0;background:var(--bg);color:var(--accent);padding:18px}
+    .wrap{max-width:900px;margin:0 auto}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between}
+    h1{font-size:18px;margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    input[type=search]{padding:8px;border-radius:8px;border:1px solid #e5e7eb}
+    .card{background:var(--card);padding:12px;border-radius:12px;margin-top:12px}
+    form{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+    label{font-size:12px;color:var(--muted)}
+    input,textarea,select{padding:8px;border-radius:8px;border:1px solid #e5e7eb;width:100%}
+    textarea{resize:vertical}
+    .full{grid-column:1/-1}
+    .btn{padding:8px 12px;border-radius:8px;border:0;background:#111827;color:#fff;cursor:pointer}
+    .btn.secondary{background:#6b7280}
+    .list{margin-top:12px}
+    .item{display:flex;gap:8px;align-items:center;padding:10px;border-radius:8px;background:#fff;border:1px solid #eaeaea;margin-bottom:8px}
+    .site{flex:1;min-width:0}
+    .site h3{margin:0;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .site p{margin:2px 0 0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+    .actions{display:flex;gap:6px}
+    .small{padding:6px 8px;font-size:13px}
+    .muted{color:var(--muted);font-size:13px}
+    .hint{font-size:12px;color:var(--muted);margin-top:6px}
+    @media (max-width:640px){form{grid-template-columns:1fr} .controls{flex:1} .item{flex-direction:column;align-items:flex-start}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Simple Password Vault</h1>
+      <div class="controls">
+        <input id="search" type="search" placeholder="Search site/email/note" />
+        <button id="exportBtn" class="btn secondary small">Export</button>
+        <button id="importBtn" class="btn secondary small">Import</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <form id="entryForm">
+        <div>
+          <label for="title">Name / Site</label>
+          <input id="title" required placeholder="e.g. Gmail, Work login" />
+        </div>
+        <div>
+          <label for="url">URL</label>
+          <input id="url" placeholder="https://" />
+        </div>
+        <div>
+          <label for="email">Email / Username</label>
+          <input id="email" placeholder="you@example.com" />
+        </div>
+        <div>
+          <label for="password">Password</label>
+          <div style="display:flex;gap:6px">
+            <input id="password" placeholder="password" />
+            <button type="button" id="gen" class="btn secondary small">Gen</button>
+          </div>
+        </div>
+
+        <div class="full">
+          <label for="note">Note (optional)</label>
+          <textarea id="note" rows="2" placeholder="anything you want to remember"></textarea>
+        </div>
+
+        <div>
+          <label>&nbsp;</label>
+          <div style="display:flex;gap:8px">
+            <button id="save" class="btn">Add</button>
+            <button id="clear" type="button" class="btn secondary">Clear</button>
+            <div style="flex:1"></div>
+            <label class="muted" style="align-self:center">Stored: <span id="count">0</span></label>
+          </div>
+        </div>
+      </form>
+
+      <div class="hint">Tip: This stores data locally on this device (localStorage). If you open this file on another device, export and import the JSON to move your data.</div>
+    </section>
+
+    <section class="list" id="list"></section>
+  </div>
+
+  <input id="fileInput" type="file" accept="application/json" style="display:none" />
+
+<script>
+  // CONFIG: change these to match your repo
+  const GITHUB_USER = 'ab23223';
+  const GITHUB_REPO = 'passwordvault';
+  const GITHUB_BRANCH = 'main'; // usually main or master
+
+  let GITHUB_TOKEN = null; // will ask once per session
+  let GITHUB_SHA = null;   // store the SHA of vault-data.json
+
+  const VAULT_FILE_PATH = 'vault-data.json';
+
+  // Elements
+  const form = document.getElementById('entryForm');
+  const titleEl = document.getElementById('title');
+  const urlEl = document.getElementById('url');
+  const emailEl = document.getElementById('email');
+  const passwordEl = document.getElementById('password');
+  const noteEl = document.getElementById('note');
+  const listEl = document.getElementById('list');
+  const countEl = document.getElementById('count');
+  const searchEl = document.getElementById('search');
+  const genBtn = document.getElementById('gen');
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+  const fileInput = document.getElementById('fileInput');
+  const clearBtn = document.getElementById('clear');
+
+  let entries = [];
+  let editId = null;
+
+  init();
+
+  async function init(){
+    // Ask for GitHub token once
+    if(!GITHUB_TOKEN){
+      GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
+      if(!GITHUB_TOKEN){ alert('Vault cannot load without token'); return; }
+    }
+    await loadVault();
+    render();
+  }
+
+  form.addEventListener('submit', e => { e.preventDefault(); saveEntry(); });
+  genBtn.addEventListener('click', () => { passwordEl.value = generatePassword(14); passwordEl.focus(); });
+  clearBtn.addEventListener('click', () => { form.reset(); editId=null; document.getElementById('save').textContent='Add'; });
+  searchEl.addEventListener('input', render);
+  exportBtn.addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='vault-backup.json'; a.click();
+    URL.revokeObjectURL(url);
+  });
+  importBtn.addEventListener('click', ()=>fileInput.click());
+  fileInput.addEventListener('change',(e)=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{ const data=JSON.parse(reader.result); if(!Array.isArray(data)) throw 0; entries=data; saveVault(); render(); alert('Imported '+data.length+' entries.'); }
+      catch{ alert('Invalid file'); }
+    };
+    reader.readAsText(file); fileInput.value='';
+  });
+
+  // LOAD vault from GitHub
+  async function loadVault(){
+    try{
+      const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`,{
+        headers:{Authorization:'token '+GITHUB_TOKEN}
+      });
+      if(!resp.ok) throw new Error('Failed to fetch vault');
+      const data = await resp.json();
+      GITHUB_SHA = data.sha;
+      const content = atob(data.content.replace(/\n/g,''));
+      entries = JSON.parse(content);
+    }catch(err){ entries=[]; console.warn('Could not load vault',err); }
+  }
+
+  // SAVE vault to GitHub
+  async function saveVault(){
+    try{
+      const content = btoa(JSON.stringify(entries,null,2));
+      const body = { message:'Update vault', content, sha:GITHUB_SHA, branch:GITHUB_BRANCH };
+      const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
+        method:'PUT',
+        headers:{Authorization:'token '+GITHUB_TOKEN,'Content-Type':'application/json'},
+        body:JSON.stringify(body)
+      });
+      if(!resp.ok) throw new Error('Failed to save vault');
+      const data = await resp.json();
+      GITHUB_SHA = data.content.sha; // update SHA for next edit
+    }catch(err){ alert('Error saving vault: '+err.message); }
+  }
+
+  // SAVE a single entry
+  async function saveEntry(){
+    const title = titleEl.value.trim(); if(!title){ alert('Please add a name/site'); return; }
+    const item = { id: editId||cryptoRandomId(), title, url:urlEl.value.trim(), email:emailEl.value.trim(), password:passwordEl.value, note:noteEl.value.trim(), updated:Date.now() };
+    if(editId){ const i = entries.findIndex(x=>x.id===editId); if(i>=0) entries[i]=item; editId=null; document.getElementById('save').textContent='Add'; }
+    else entries.unshift(item);
+    form.reset();
+    await saveVault();
+    render();
+  }
+
+  // DELETE an entry
+  async function deleteEntry(id){
+    entries = entries.filter(x=>x.id!==id);
+    await saveVault();
+    render();
+  }
+
+  // RENDER UI
+  function render(){
+    const q = searchEl.value.trim().toLowerCase();
+    listEl.innerHTML='';
+    const filtered = entries.filter(e=>!q||(e.title+e.email+e.note+e.url).toLowerCase().includes(q));
+    countEl.textContent=entries.length;
+    if(filtered.length===0){ listEl.innerHTML='<div class="muted" style="padding:10px">No entries yet.</div>'; return; }
+
+    filtered.forEach(e=>{
+      const div=document.createElement('div'); div.className='item';
+      const site=document.createElement('div'); site.className='site';
+      const h=document.createElement('h3'); h.textContent=e.title; site.appendChild(h);
+      const p=document.createElement('p'); p.innerHTML=(e.email?escapeHtml(e.email)+' • ':'')+(e.url?('<a href="'+escapeHtml(e.url)+'" target="_blank" rel="noopener">'+shortUrl(e.url)+'</a>'):'')+(e.note?('<br><span class="muted">'+escapeHtml(e.note)+'</span>'):'');
+      site.appendChild(p);
+
+      const actions=document.createElement('div'); actions.className='actions';
+
+      const pwSpan=document.createElement('span'); pwSpan.className='muted'; pwSpan.style.marginRight='6px'; pwSpan.textContent='••••••';
+      let showing=false;
+      const pwBtn=document.createElement('button'); pwBtn.className='btn small'; pwBtn.textContent='Show';
+      pwBtn.addEventListener('click', ()=>{ showing=!showing; pwSpan.textContent=showing?e.password:'••••••'; pwBtn.textContent=showing?'Hide':'Show'; });
+
+      const copyBtn=document.createElement('button'); copyBtn.className='btn secondary small'; copyBtn.textContent='Copy';
+      copyBtn.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(e.password||''); alert('Copied'); }catch{ prompt('Copy manually',e.password||''); } });
+
+      const editBtn=document.createElement('button'); editBtn.className='btn small'; editBtn.textContent='Edit';
+      editBtn.addEventListener('click', ()=>{ populateFormForEdit(e); });
+
+      const delBtn=document.createElement('button'); delBtn.className='btn secondary small'; delBtn.textContent='Delete';
+      delBtn.addEventListener('click', ()=>{ if(confirm('Delete "'+e.title+'"?')) deleteEntry(e.id); });
+
+      actions.appendChild(pwSpan); actions.appendChild(pwBtn); actions.appendChild(copyBtn); actions.appendChild(editBtn); actions.appendChild(delBtn);
+
+      div.appendChild(site); div.appendChild(actions);
+      listEl.appendChild(div);
+    });
+  }
+
+  function populateFormForEdit(e){ titleEl.value=e.title||''; urlEl.value=e.url||''; emailEl.value=e.email||''; passwordEl.value=e.password||''; noteEl.value=e.note||''; editId=e.id; document.getElementById('save').textContent='Save'; window.scrollTo({top:0,behavior:'smooth'}); }
+
+  function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function shortUrl(u){ try{ return new URL(u).hostname; }catch{return u.length>30?u.slice(0,27)+'...':u; } }
+  function cryptoRandomId(){ return 'id-'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
+  function generatePassword(len){ const sets='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?'; let out=''; const rng=crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(len)):null; for(let i=0;i<len;i++){ const idx=rng?rng[i]%sets.length:Math.floor(Math.random()*sets.length); out+=sets.charAt(idx); } return out; }
+
+  // Ctrl+F shortcut for search
+  window.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){ e.preventDefault(); searchEl.focus(); searchEl.select(); } });
+</script>
+</body>
+</html>
