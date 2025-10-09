@@ -123,14 +123,20 @@
   init();
 
   async function init(){
-    // Ask for GitHub token once
-    if(!GITHUB_TOKEN){
-      GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
-      if(!GITHUB_TOKEN){ alert('Vault cannot load without token'); return; }
-    }
-    await loadVault();
-    render();
+  // Load token from localStorage
+  GITHUB_TOKEN = localStorage.getItem('vaultGitHubToken');
+  
+  // Ask if not set
+  if(!GITHUB_TOKEN){
+    GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
+    if(!GITHUB_TOKEN){ alert('Vault cannot load without token'); return; }
+    localStorage.setItem('vaultGitHubToken', GITHUB_TOKEN); // remember for next time
   }
+
+  await loadVault();
+  render();
+}
+
 
   form.addEventListener('submit', e => { e.preventDefault(); saveEntry(); });
   genBtn.addEventListener('click', () => { passwordEl.value = generatePassword(14); passwordEl.focus(); });
