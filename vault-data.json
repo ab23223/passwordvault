@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": "id-qytagflmc63o",
+    "title": "School Gmail",
+    "url": "https://login.microsoftonline.com/9b3bef9b-5988-431e-a669-f22c6238e59a/saml2",
+    "email": "ab23223@students.sacredheart.school.nz",
+    "password": "erYsim3m",
+    "note": "School email",
+    "updated": 1760050018788
+  }
+]
