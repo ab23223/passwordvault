@@ -1,5 +1,14 @@
 [
   {
+    "id": "id-ol5zxjgamo0d",
+    "title": "Google Apple",
+    "url": "https://idmsa.apple.com/appleauth/auth/authorize/signin",
+    "email": "ashton.balu09@gmail.com",
+    "password": "Asht0nsb2009!",
+    "note": "Apple Account With Personal Gmail",
+    "updated": 1760052188173
+  },
+  {
     "id": "id-qytagflmc63o",
     "title": "School Gmail",
     "url": "https://login.microsoftonline.com/9b3bef9b-5988-431e-a669-f22c6238e59a/saml2",
