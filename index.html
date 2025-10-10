@@ -178,7 +178,14 @@
     async function saveVault(){
     try{
         const content = btoa(JSON.stringify(entries,null,2));
-        const body = { message:'Update vault', content, branch:GITHUB_BRANCH };
+        const body = {
+          message: 'Update vault',
+          content,
+          sha: GITHUB_SHA,
+          committer: { name: 'Vault Bot', email: 'bot@example.com' },
+          author: { name: 'Vault Bot', email: 'bot@example.com' }
+        };
+
         
         if(GITHUB_SHA) body.sha = GITHUB_SHA; // only send SHA if file exists
 
