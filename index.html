@@ -209,9 +209,11 @@
     const item = { id: editId||cryptoRandomId(), title, url:urlEl.value.trim(), email:emailEl.value.trim(), password:passwordEl.value, note:noteEl.value.trim(), updated:Date.now() };
     if(editId){ const i = entries.findIndex(x=>x.id===editId); if(i>=0) entries[i]=item; editId=null; document.getElementById('save').textContent='Add'; }
     else entries.unshift(item);
+    sortEntries();
     form.reset();
     await saveVault();
     render();
+
   }
 
   // DELETE an entry
@@ -220,6 +222,11 @@
     await saveVault();
     render();
   }
+
+  function sortEntries() {
+    entries.sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()));
+  }
+
 
   // RENDER UI
   function render(){
