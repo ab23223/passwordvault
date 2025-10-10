@@ -122,20 +122,29 @@
 
   init();
 
-  async function init(){
-  // Load token from localStorage
-  GITHUB_TOKEN = localStorage.getItem('vaultGitHubToken');
-  
-  // Ask if not set
-  if(!GITHUB_TOKEN){
-    GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
-    if(!GITHUB_TOKEN){ alert('Vault cannot load without token'); return; }
-    localStorage.setItem('vaultGitHubToken', GITHUB_TOKEN); // remember for next time
+  async function init() {
+      GITHUB_TOKEN = localStorage.getItem('vaultGitHubToken');
+
+      if(!GITHUB_TOKEN) {
+          GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
+          if(!GITHUB_TOKEN){ 
+              alert('Vault cannot load without token'); 
+              return; 
+          }
+          localStorage.setItem('vaultGitHubToken', GITHUB_TOKEN);
+      }
+
+      try {
+          await loadVault();
+      } catch(err) {
+          alert('Failed to load vault. Please re-enter your GitHub token.');
+          localStorage.removeItem('vaultGitHubToken');
+          location.reload(); // forces prompt again
+      }
+
+      render();
   }
 
-  await loadVault();
-  render();
-}
 
 
   form.addEventListener('submit', e => { e.preventDefault(); saveEntry(); });
@@ -282,6 +291,9 @@
 
   // Ctrl+F shortcut for search
   window.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){ e.preventDefault(); searchEl.focus(); searchEl.select(); } });
+
+  setInterval(loadVault, 30000);
+  
 </script>
 </body>
 </html>
