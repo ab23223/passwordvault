@@ -230,448 +230,441 @@
   <!-- hidden file input -->
   <input id="fileInput" type="file" accept="application/json" style="display:none" />
 
-  <script>
-    // --- CONFIG ---
-    const GITHUB_USER = 'ab23223';
-    const GITHUB_REPO = 'passwordvault';
-    const GITHUB_BRANCH = 'main';
-    const VAULT_FILE_PATH = 'vault-data.json';
+<script>
+  // --- CONFIG ---
+  const GITHUB_USER = 'ab23223';
+  const GITHUB_REPO = 'passwordvault';
+  const GITHUB_BRANCH = 'main';
+  const VAULT_FILE_PATH = 'vault-data.json';
 
-    let GITHUB_TOKEN = null;
-    let GITHUB_SHA = null;
+  let GITHUB_TOKEN = null;
+  let GITHUB_SHA = null;
 
-    // Form & UI elements
-    const form = document.getElementById('entryForm');
-    const titleEl = document.getElementById('title');
-    const urlEl = document.getElementById('url');
-    const emailEl = document.getElementById('email');
-    const passwordEl = document.getElementById('password');
-    const noteEl = document.getElementById('note');
-    const categoryEl = document.getElementById('category');
+  // Form & UI elements
+  const form = document.getElementById('entryForm');
+  const titleEl = document.getElementById('title');
+  const urlEl = document.getElementById('url');
+  const emailEl = document.getElementById('email');
+  const passwordEl = document.getElementById('password');
+  const noteEl = document.getElementById('note');
+  const categoryEl = document.getElementById('category');
 
-    const listEl = document.getElementById('list');
-    const countEl = document.getElementById('count');
-    const searchMain = document.getElementById('searchMain');
-    const sidebarSearch = document.getElementById('sidebarSearch');
+  const listEl = document.getElementById('list');
+  const countEl = document.getElementById('count');
+  const searchMain = document.getElementById('searchMain');
+  const sidebarSearch = document.getElementById('sidebarSearch');
 
-    const genBtn = document.getElementById('gen');
-    const exportBtn = document.getElementById('exportBtn');
-    const importBtn = document.getElementById('importBtn');
-    const fileInput = document.getElementById('fileInput');
-    const clearBtn = document.getElementById('clear');
-    const addItemBtn = document.getElementById('addItemBtn');
-    const sidebarGen = document.getElementById('sidebarGen');
+  const genBtn = document.getElementById('gen');
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+  const fileInput = document.getElementById('fileInput');
+  const clearBtn = document.getElementById('clear');
+  const addItemBtn = document.getElementById('addItemBtn');
+  const sidebarGen = document.getElementById('sidebarGen');
 
-    const modal = document.getElementById('modal');
-    const modalBackdrop = document.getElementById('modalBackdrop');
-    const closeModal = document.getElementById('closeModal');
+  const modal = document.getElementById('modal');
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  const closeModal = document.getElementById('closeModal');
 
-    const sortBtn = document.getElementById('sortBtn');
-    const sortMenu = document.getElementById('sortMenu');
-    const sortLabel = document.getElementById('sortLabel');
+  const sortBtn = document.getElementById('sortBtn');
+  const sortMenu = document.getElementById('sortMenu');
+  const sortLabel = document.getElementById('sortLabel');
 
-    // sidebar category buttons
-    const sidebarBtns = Array.from(document.querySelectorAll('button[data-cat]'));
-    const catButtons = {
-      All: document.getElementById('cat-All'),
-      Passkeys: document.getElementById('cat-Passkeys'),
-      Logins: document.getElementById('cat-Logins'),
-      Wifi: document.getElementById('cat-Wifi'),
-      "Personal Info": document.getElementById('cat-Personal Info')
-    };
+  // sidebar category buttons
+  const sidebarBtns = Array.from(document.querySelectorAll('button[data-cat]'));
+  const catButtons = {
+    All: document.getElementById('cat-All'),
+    Passkeys: document.getElementById('cat-Passkeys'),
+    Logins: document.getElementById('cat-Logins'),
+    Wifi: document.getElementById('cat-Wifi'),
+    "Personal Info": document.getElementById('cat-Personal Info')
+  };
 
-    // app state
-    let entries = [];
-    let editId = null;
-    let activeCategory = 'All'; // All | Passkeys | Logins | Wifi | Personal Info
-    let sortMode = 'az'; // 'az' | 'za' | 'date' ; default A–Z => 'az'
-    sortLabel.textContent = 'A–Z';
+  // app state
+  let entries = [];
+  let editId = null;
+  let activeCategory = 'All'; // All | Passkeys | Logins | Wifi | Personal Info
+  let sortMode = 'az'; // 'az' | 'za' | 'date' ; default A–Z => 'az'
+  sortLabel.textContent = 'A–Z';
 
-    init();
+  init();
 
-    // ---------------- INIT ----------------
-    async function init(){
-      // pull token (same UX as before)
-      GITHUB_TOKEN = localStorage.getItem('vaultGitHubToken');
-      if(!GITHUB_TOKEN){
-        GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
-        if(!GITHUB_TOKEN){ alert('Vault cannot load without token'); return; }
-        localStorage.setItem('vaultGitHubToken', GITHUB_TOKEN);
-      }
-
-      // wire up sidebar buttons
-      Object.keys(catButtons).forEach(cat=>{
-        const btn = catButtons[cat];
-        if(!btn) return;
-        btn.addEventListener('click', ()=>{ setActiveCategory(cat); });
-      });
-
-      // wire up sort menu items
-      Array.from(sortMenu.querySelectorAll('button[data-sort]')).forEach(b=>{
-        b.addEventListener('click', (ev)=>{
-          const mode = ev.currentTarget.dataset.sort;
-          setSortMode(mode);
-          sortMenu.classList.add('hidden');
-        });
-      });
-
-      // other bindings
-      addItemBtn.addEventListener('click', openModal);
-      closeModal.addEventListener('click', closeModalFn);
-      modalBackdrop.addEventListener('click', closeModalFn);
-      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModalFn(); });
-
-      form.addEventListener('submit', e=>{ e.preventDefault(); saveEntry(); });
-      genBtn.addEventListener('click', ()=>{ passwordEl.value = generatePassword(14); passwordEl.focus(); });
-      sidebarGen.addEventListener('click', ()=>{ openModal(); passwordEl.value = generatePassword(14); });
-
-      clearBtn.addEventListener('click', ()=>{ form.reset(); editId=null; document.getElementById('save').textContent='Add'; });
-
-      [searchMain, sidebarSearch].forEach(inp => { if(inp) inp.addEventListener('input', render); });
-
-      exportBtn.addEventListener('click', exportEntries);
-      if(importBtn) importBtn.addEventListener('click', ()=>fileInput.click());
-      fileInput.addEventListener('change', handleFileImport);
-
-      // sort dropdown toggle
-      sortBtn.addEventListener('click', ()=>{ sortMenu.classList.toggle('hidden'); });
-
-      // ctrl/cmd+F focus
-      window.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){ e.preventDefault(); if(searchMain){ searchMain.focus(); searchMain.select(); } else if(sidebarSearch){ sidebarSearch.focus(); sidebarSearch.select(); } } });
-
-      // load vault
-      try { await loadVault(); } catch(err){ console.warn('loadVault failed',err); }
-      updateCategoryCounts();
-      applySort(); // initial sort (A–Z)
-      render();
-
-      // auto reload
-      setInterval(loadVault, 30000);
+  // ---------------- INIT ----------------
+  async function init(){
+    // pull token (same UX as before)
+    GITHUB_TOKEN = localStorage.getItem('vaultGitHubToken');
+    if(!GITHUB_TOKEN){
+      GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
+      if(!GITHUB_TOKEN){ alert('Vault cannot load without token'); return; }
+      localStorage.setItem('vaultGitHubToken', GITHUB_TOKEN);
     }
 
-    // ---------------- GITHUB LOAD / SAVE ----------------
-// ---------------- GITHUB LOAD / SAVE ----------------
-    async function loadVault() {
-      try {
-        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`, {
-          headers: { Authorization: 'token ' + GITHUB_TOKEN }
-        });
-        if (!resp.ok) throw new Error('Failed to fetch vault');
-        const data = await resp.json();
-        GITHUB_SHA = data.sha; // always store latest sha
-        const content = atob(data.content.replace(/\n/g, ''));
-        entries = JSON.parse(content);
-      } catch (err) {
-        entries = entries || [];
-        console.warn('Could not load vault', err);
-      }
-    }
-
-    async function saveVault() {
-      try {
-        // Always get fresh SHA first to avoid branch creation
-        if (!GITHUB_SHA) await loadVault();
-
-        const content = btoa(JSON.stringify(entries, null, 2));
-        const body = {
-          message: 'Update vault',
-          content,
-          branch: GITHUB_BRANCH,       // <-- force main branch
-          committer: { name: 'Vault Bot', email: 'bot@example.com' },
-          author: { name: 'Vault Bot', email: 'bot@example.com' },
-          sha: GITHUB_SHA              // <-- required for updating existing file
-        };
-
-        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`, {
-          method: 'PUT',
-          headers: { Authorization: 'token ' + GITHUB_TOKEN, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-
-        if (!resp.ok) {
-          const text = await resp.text();
-          throw new Error(text || 'Failed to save vault');
-        }
-
-        const data = await resp.json();
-        GITHUB_SHA = data.content.sha; // update SHA after save
-        console.log('Vault saved successfully ✅');
-        updateCategoryCounts();
-      } catch (err) {
-        alert('Error saving vault: ' + (err.message || err));
-        console.error(err);
-      }
-    }
-
-    // ---------------- EXPORT / IMPORT ----------------
-    function exportEntries(){
-      const blob = new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href=url; a.download='vault-backup.json'; a.click();
-      URL.revokeObjectURL(url);
-    }
-
-    function handleFileImport(e){
-      const file=e.target.files[0]; if(!file) return;
-      const reader=new FileReader();
-      reader.onload=()=>{
-        try{
-          const data=JSON.parse(reader.result);
-          if(!Array.isArray(data)) throw 0;
-          entries=data;
-          saveVault();
-          render();
-          alert('Imported '+data.length+' entries.');
-        }catch{
-          alert('Invalid file');
-        }
-      };
-      reader.readAsText(file); fileInput.value='';
-    }
-
-    // ---------------- CRUD ----------------
-    async function saveEntry(){
-      const title = titleEl.value.trim(); if(!title){ alert('Please add a name/site'); return; }
-      // category value from dropdown
-      const category = (categoryEl.value || 'Logins');
-      const item = { id: editId||cryptoRandomId(), title, url:urlEl.value.trim(), email:emailEl.value.trim(), password:passwordEl.value, note:noteEl.value.trim(), category, updated:Date.now() };
-
-      if(editId){
-        const i = entries.findIndex(x=>x.id===editId);
-        if(i>=0) entries[i]=item;
-        editId = null;
-        document.getElementById('save').textContent='Add';
-      } else {
-        entries.unshift(item);
-      }
-
-      applySort();
-      form.reset();
-      await saveVault();
-      render();
-      closeModalFn();
-    }
-
-    async function deleteEntry(id){
-      if(!confirm('Delete this entry?')) return;
-      entries = entries.filter(x=>x.id!==id);
-      await saveVault();
-      render();
-    }
-
-    function populateFormForEdit(e){
-      openModal();
-      titleEl.value=e.title||'';
-      urlEl.value=e.url||'';
-      emailEl.value=e.email||'';
-      passwordEl.value=e.password||'';
-      noteEl.value=e.note||'';
-      categoryEl.value = e.category || 'Logins';
-      editId=e.id;
-      document.getElementById('save').textContent='Save';
-    }
-
-    // ---------------- SORT & FILTER ----------------
-    function applySort(){
-      if(sortMode === 'az'){
-        entries.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
-        sortLabel.textContent = 'A–Z';
-      } else if(sortMode === 'za'){
-        entries.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
-        sortLabel.textContent = 'Z–A';
-      } else if(sortMode === 'date'){
-        entries.sort((a,b)=> (b.updated||0) - (a.updated||0));
-        sortLabel.textContent = 'Last Updated';
-      }
-    }
-
-    function setSortMode(mode){
-      sortMode = mode;
-      applySort();
-      render();
-    }
-
-    function setActiveCategory(cat){
-      activeCategory = cat;
-      // UI: heading and selected highlight
-      document.getElementById('headingTitle').textContent = cat === 'All' ? 'All Items' : cat;
-      // remove active class from all
-      Object.values(catButtons).forEach(b => { if(b) b.classList.remove('cat-active'); });
+    // wire up sidebar buttons
+    Object.keys(catButtons).forEach(cat=>{
       const btn = catButtons[cat];
-      if(btn) btn.classList.add('cat-active');
-      render();
-    }
+      if(!btn) return;
+      btn.addEventListener('click', ()=>{ setActiveCategory(cat); });
+    });
 
-    // ---------------- RENDER ----------------
-    function render(){
-      const q = ((searchMain && searchMain.value) || (sidebarSearch && sidebarSearch.value) || '').trim().toLowerCase();
-      listEl.innerHTML='';
-      // apply filtering by category
-      let filtered = entries.slice();
-      if(activeCategory !== 'All'){
-        filtered = filtered.filter(e => (e.category || '') === activeCategory);
-      }
-
-      // apply search filter
-      filtered = filtered.filter(e => {
-        if(!q) return true;
-        return ( (e.title||'') + ' ' + (e.email||'') + ' ' + (e.note||'') + ' ' + (e.url||'') ).toLowerCase().includes(q);
+    // wire up sort menu items
+    Array.from(sortMenu.querySelectorAll('button[data-sort]')).forEach(b=>{
+      b.addEventListener('click', (ev)=>{
+        const mode = ev.currentTarget.dataset.sort;
+        setSortMode(mode);
+        sortMenu.classList.add('hidden');
       });
+    });
 
-      // they are already sorted by applySort() at mutation points, but ensure stable sorting
-      if(sortMode === 'az') filtered.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
-      else if(sortMode === 'za') filtered.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
-      else if(sortMode === 'date') filtered.sort((a,b)=> (b.updated||0) - (a.updated||0));
+    // other bindings
+    addItemBtn.addEventListener('click', openModal);
+    closeModal.addEventListener('click', closeModalFn);
+    modalBackdrop.addEventListener('click', closeModalFn);
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModalFn(); });
 
-      countEl.textContent = entries.length;
-      // update All count at sidebar
+    form.addEventListener('submit', e=>{ e.preventDefault(); saveEntry(); });
+    genBtn.addEventListener('click', ()=>{ passwordEl.value = generatePassword(14); passwordEl.focus(); });
+    sidebarGen.addEventListener('click', ()=>{ openModal(); passwordEl.value = generatePassword(14); });
+
+    clearBtn.addEventListener('click', ()=>{ form.reset(); editId=null; document.getElementById('save').textContent='Add'; });
+
+    [searchMain, sidebarSearch].forEach(inp => { if(inp) inp.addEventListener('input', render); });
+
+    exportBtn.addEventListener('click', exportEntries);
+    if(importBtn) importBtn.addEventListener('click', ()=>fileInput.click());
+    fileInput.addEventListener('change', handleFileImport);
+
+    // sort dropdown toggle
+    sortBtn.addEventListener('click', ()=>{ sortMenu.classList.toggle('hidden'); });
+
+    // ctrl/cmd+F focus
+    window.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){ e.preventDefault(); if(searchMain){ searchMain.focus(); searchMain.select(); } else if(sidebarSearch){ sidebarSearch.focus(); sidebarSearch.select(); } } });
+
+    // load vault
+    try { await loadVault(); } catch(err){ console.warn('loadVault failed',err); }
+    updateCategoryCounts();
+    applySort(); // initial sort (A–Z)
+    render();
+
+    // auto reload
+    setInterval(loadVault, 30000);
+  }
+
+  // ---------------- GITHUB LOAD / SAVE ----------------
+  async function loadVault(){
+    try{
+      const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`,{
+        headers:{Authorization:'token '+GITHUB_TOKEN}
+      });
+      if(!resp.ok) throw new Error('Failed to fetch vault');
+      const data = await resp.json();
+      GITHUB_SHA = data.sha;
+      const content = atob(data.content.replace(/\n/g,''));
+      entries = JSON.parse(content);
+    }catch(err){
+      // if cannot load, keep entries array as-is (empty or local changes)
+      entries = entries || [];
+      console.warn('Could not load vault',err);
+    }
+  }
+
+  async function saveVault(){
+    try{
+      const content = btoa(JSON.stringify(entries,null,2));
+      const body = {
+        message: 'Update vault',
+        content,
+        sha: GITHUB_SHA,
+        committer: { name: 'Vault Bot', email: 'bot@example.com' },
+        author: { name: 'Vault Bot', email: 'bot@example.com' }
+      };
+      if(GITHUB_SHA) body.sha = GITHUB_SHA;
+
+      const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
+        method:'PUT',
+        headers:{Authorization:'token '+GITHUB_TOKEN,'Content-Type':'application/json'},
+        body:JSON.stringify(body)
+      });
+      if(!resp.ok){
+        const text = await resp.text();
+        throw new Error(text || 'Failed to save vault');
+      }
+      const data = await resp.json();
+      GITHUB_SHA = data.content.sha;
+      console.log('Vault saved successfully ✅');
       updateCategoryCounts();
+    }catch(err){
+      alert('Error saving vault: '+(err.message || err));
+      console.error(err);
+    }
+  }
 
-      if(filtered.length === 0){
-        const empty = document.createElement('div');
-        empty.className = 'text-nordmuted p-4 rounded-lg';
-        empty.textContent = 'No entries yet.';
-        listEl.appendChild(empty);
-        return;
+  // ---------------- EXPORT / IMPORT ----------------
+  function exportEntries(){
+    const blob = new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='vault-backup.json'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleFileImport(e){
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const data=JSON.parse(reader.result);
+        if(!Array.isArray(data)) throw 0;
+        entries=data;
+        saveVault();
+        render();
+        alert('Imported '+data.length+' entries.');
+      }catch{
+        alert('Invalid file');
       }
+    };
+    reader.readAsText(file); fileInput.value='';
+  }
 
-      filtered.forEach(e=>{
-        const row = document.createElement('div');
-        row.className = 'flex items-center justify-between gap-4 p-5 rounded-xl bg-white shadow-sm border border-black/10 hover:-translate-y-0.5 hover:shadow-lg hover:border-blue-400/40 transition-all duration-200 ease-in-out';
+  // ---------------- CRUD ----------------
+  async function saveEntry(){
+    const title = titleEl.value.trim(); if(!title){ alert('Please add a name/site'); return; }
+    // category value from dropdown
+    const category = (categoryEl.value || 'Logins');
+    const item = { id: editId||cryptoRandomId(), title, url:urlEl.value.trim(), email:emailEl.value.trim(), password:passwordEl.value, note:noteEl.value.trim(), category, updated:Date.now() };
 
-        const left = document.createElement('div');
-        left.className = 'flex items-center gap-4 min-w-0';
+    if(editId){
+      const i = entries.findIndex(x=>x.id===editId);
+      if(i>=0) entries[i]=item;
+      editId = null;
+      document.getElementById('save').textContent='Add';
+    } else {
+      entries.unshift(item);
+    }
 
-        const logo = document.createElement('div');
-        logo.className = 'w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0';
-        const logoText = document.createElement('div');
-        logoText.className = 'text-black font-semibold';
-        logoText.textContent = (e.title ? e.title.charAt(0).toUpperCase() : '?');
-        logo.appendChild(logoText);
+    applySort();
+    form.reset();
+    await saveVault();
+    render();
+    closeModalFn();
+  }
 
-        const site = document.createElement('div');
-        site.className = 'min-w-0';
+  async function deleteEntry(id){
+    if(!confirm('Delete this entry?')) return;
+    entries = entries.filter(x=>x.id!==id);
+    await saveVault();
+    render();
+  }
 
-        const h = document.createElement('div');
-        h.className = 'text-sm font-semibold truncate';
-        h.textContent = e.title;
+  function populateFormForEdit(e){
+    openModal();
+    titleEl.value=e.title||'';
+    urlEl.value=e.url||'';
+    emailEl.value=e.email||'';
+    passwordEl.value=e.password||'';
+    noteEl.value=e.note||'';
+    categoryEl.value = e.category || 'Logins';
+    editId=e.id;
+    document.getElementById('save').textContent='Save';
+  }
 
-        const p = document.createElement('div');
-        p.className = 'text-xs text-nordmuted truncate mt-0.5';
-        const parts = [];
-        if(e.email) parts.push(escapeHtml(e.email));
-        if(e.url) parts.push(shortUrl(e.url));
-        if(e.note) parts.push('Note');
-        // include category tag in the meta string
-        if(e.category) parts.push('['+e.category+']');
-        p.innerHTML = parts.join(' • ');
+  // ---------------- SORT & FILTER ----------------
+  function applySort(){
+    if(sortMode === 'az'){
+      entries.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
+      sortLabel.textContent = 'A–Z';
+    } else if(sortMode === 'za'){
+      entries.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
+      sortLabel.textContent = 'Z–A';
+    } else if(sortMode === 'date'){
+      entries.sort((a,b)=> (b.updated||0) - (a.updated||0));
+      sortLabel.textContent = 'Last Updated';
+    }
+  }
 
-        site.appendChild(h);
-        site.appendChild(p);
-        left.appendChild(logo);
-        left.appendChild(site);
+  function setSortMode(mode){
+    sortMode = mode;
+    applySort();
+    render();
+  }
 
-        const right = document.createElement('div');
-        right.className = 'flex items-center gap-3';
+  function setActiveCategory(cat){
+    activeCategory = cat;
+    // UI: heading and selected highlight
+    document.getElementById('headingTitle').textContent = cat === 'All' ? 'All Items' : cat;
+    // remove active class from all
+    Object.values(catButtons).forEach(b => { if(b) b.classList.remove('cat-active'); });
+    const btn = catButtons[cat];
+    if(btn) btn.classList.add('cat-active');
+    render();
+  }
 
-        const last = document.createElement('div');
-        last.className = 'text-xs text-nordmuted text-right w-28';
-        last.textContent = timeAgo(e.updated);
+  // ---------------- RENDER ----------------
+  function render(){
+    const q = ((searchMain && searchMain.value) || (sidebarSearch && sidebarSearch.value) || '').trim().toLowerCase();
+    listEl.innerHTML='';
+    // apply filtering by category
+    let filtered = entries.slice();
+    if(activeCategory !== 'All'){
+      filtered = filtered.filter(e => (e.category || '') === activeCategory);
+    }
 
-        const actions = document.createElement('div');
-        actions.className = 'flex gap-2 items-center';
+    // apply search filter
+    filtered = filtered.filter(e => {
+      if(!q) return true;
+      return ( (e.title||'') + ' ' + (e.email||'') + ' ' + (e.note||'') + ' ' + (e.url||'') ).toLowerCase().includes(q);
+    });
 
-        const pwSpan = document.createElement('span');
-        pwSpan.className = 'text-xs text-nordmuted monospace';
-        pwSpan.textContent = '••••••';
+    // they are already sorted by applySort() at mutation points, but ensure stable sorting
+    if(sortMode === 'az') filtered.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
+    else if(sortMode === 'za') filtered.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
+    else if(sortMode === 'date') filtered.sort((a,b)=> (b.updated||0) - (a.updated||0));
 
-        let showing = false;
-        const pwBtn = document.createElement('button');
-        pwBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
-        pwBtn.textContent = 'Show';
-        pwBtn.addEventListener('click', ()=>{
-          showing = !showing;
-          pwSpan.textContent = showing ? e.password : '••••••';
-          pwBtn.textContent = showing ? 'Hide' : 'Show';
-        });
+    countEl.textContent = entries.length;
+    // update All count at sidebar
+    updateCategoryCounts();
 
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
-        copyBtn.textContent = 'Copy';
-        copyBtn.addEventListener('click', async ()=>{
-          try{ await navigator.clipboard.writeText(e.password||''); showToast('Copied'); }catch{ prompt('Copy manually', e.password||''); }
-        });
+    if(filtered.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'text-nordmuted p-4 rounded-lg';
+      empty.textContent = 'No entries yet.';
+      listEl.appendChild(empty);
+      return;
+    }
 
-        const editBtn = document.createElement('button');
-        editBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
-        editBtn.textContent = 'Edit';
-        editBtn.addEventListener('click', ()=> populateFormForEdit(e));
+    filtered.forEach(e=>{
+      const row = document.createElement('div');
+      row.className = 'flex items-center justify-between gap-4 p-5 rounded-xl bg-white shadow-sm border border-black/10 hover:-translate-y-0.5 hover:shadow-lg hover:border-blue-400/40 transition-all duration-200 ease-in-out';
 
-        const delBtn = document.createElement('button');
-        delBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/6';
-        delBtn.textContent = 'Delete';
-        delBtn.addEventListener('click', ()=> deleteEntry(e.id));
+      const left = document.createElement('div');
+      left.className = 'flex items-center gap-4 min-w-0';
 
-        actions.appendChild(pwSpan);
-        actions.appendChild(pwBtn);
-        actions.appendChild(copyBtn);
-        actions.appendChild(editBtn);
-        actions.appendChild(delBtn);
+      const logo = document.createElement('div');
+      logo.className = 'w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0';
+      const logoText = document.createElement('div');
+      logoText.className = 'text-black font-semibold';
+      logoText.textContent = (e.title ? e.title.charAt(0).toUpperCase() : '?');
+      logo.appendChild(logoText);
 
-        right.appendChild(last);
-        right.appendChild(actions);
+      const site = document.createElement('div');
+      site.className = 'min-w-0';
 
-        row.appendChild(left);
-        row.appendChild(right);
+      const h = document.createElement('div');
+      h.className = 'text-sm font-semibold truncate';
+      h.textContent = e.title;
 
-        listEl.appendChild(row);
+      const p = document.createElement('div');
+      p.className = 'text-xs text-nordmuted truncate mt-0.5';
+      const parts = [];
+      if(e.email) parts.push(escapeHtml(e.email));
+      if(e.url) parts.push(shortUrl(e.url));
+      if(e.note) parts.push('Note');
+      // include category tag in the meta string
+      if(e.category) parts.push('['+e.category+']');
+      p.innerHTML = parts.join(' • ');
+
+      site.appendChild(h);
+      site.appendChild(p);
+      left.appendChild(logo);
+      left.appendChild(site);
+
+      const right = document.createElement('div');
+      right.className = 'flex items-center gap-3';
+
+      const last = document.createElement('div');
+      last.className = 'text-xs text-nordmuted text-right w-28';
+      last.textContent = timeAgo(e.updated);
+
+      const actions = document.createElement('div');
+      actions.className = 'flex gap-2 items-center';
+
+      const pwSpan = document.createElement('span');
+      pwSpan.className = 'text-xs text-nordmuted monospace';
+      pwSpan.textContent = '••••••';
+
+      let showing = false;
+      const pwBtn = document.createElement('button');
+      pwBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+      pwBtn.textContent = 'Show';
+      pwBtn.addEventListener('click', ()=>{
+        showing = !showing;
+        pwSpan.textContent = showing ? e.password : '••••••';
+        pwBtn.textContent = showing ? 'Hide' : 'Show';
       });
-    }
 
-    // ---------------- HELPERS ----------------
-    function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function shortUrl(u){ try{ return new URL(u).hostname; }catch{return u.length>30?u.slice(0,27)+'...':u; } }
-    function cryptoRandomId(){ return 'id-'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
-    function generatePassword(len){ const sets='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?'; let out=''; const rng=crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(len)):null; for(let i=0;i<len;i++){ const idx=rng?rng[i]%sets.length:Math.floor(Math.random()*sets.length); out+=sets.charAt(idx); } return out; }
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+      copyBtn.textContent = 'Copy';
+      copyBtn.addEventListener('click', async ()=>{
+        try{ await navigator.clipboard.writeText(e.password||''); showToast('Copied'); }catch{ prompt('Copy manually', e.password||''); }
+      });
 
-    function timeAgo(ts){
-      if(!ts) return '-';
-      const s = Math.floor((Date.now()-ts)/1000);
-      if(s < 60) return s + 's ago';
-      const m = Math.floor(s/60);
-      if(m < 60) return m + 'm ago';
-      const h = Math.floor(m/60);
-      if(h < 24) return h + 'h ago';
-      const d = Math.floor(h/24);
-      return d + 'd ago';
-    }
+      const editBtn = document.createElement('button');
+      editBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+      editBtn.textContent = 'Edit';
+      editBtn.addEventListener('click', ()=> populateFormForEdit(e));
 
-    // simple toast
-    function showToast(msg){
-      const t = document.createElement('div');
-      t.className = 'fixed bottom-8 right-8 bg-black/70 text-white px-4 py-2 rounded-md z-60';
-      t.textContent = msg;
-      document.body.appendChild(t);
-      setTimeout(()=>{ t.remove(); }, 1500);
-    }
+      const delBtn = document.createElement('button');
+      delBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/6';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', ()=> deleteEntry(e.id));
 
-    // modal open/close
-    function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); setTimeout(()=> titleEl.focus(),80); }
-    function closeModalFn(){ modal.classList.add('hidden'); modal.classList.remove('flex'); form.reset(); editId=null; document.getElementById('save').textContent='Add'; }
+      actions.appendChild(pwSpan);
+      actions.appendChild(pwBtn);
+      actions.appendChild(copyBtn);
+      actions.appendChild(editBtn);
+      actions.appendChild(delBtn);
 
-    function updateCategoryCounts(){
-      // update All count
-      const allCount = entries.length;
-      const elAll = document.getElementById('countAll');
-      if(elAll) elAll.textContent = allCount;
-    }
+      right.appendChild(last);
+      right.appendChild(actions);
 
-    // ensure initial sort and category UI set
-    setActiveCategory('All');
-    setSortMode('az');
+      row.appendChild(left);
+      row.appendChild(right);
 
-  </script>
+      listEl.appendChild(row);
+    });
+  }
 
+  // ---------------- HELPERS ----------------
+  function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function shortUrl(u){ try{ return new URL(u).hostname; }catch{return u.length>30?u.slice(0,27)+'...':u; } }
+  function cryptoRandomId(){ return 'id-'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
+  function generatePassword(len){ const sets='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?'; let out=''; const rng=crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(len)):null; for(let i=0;i<len;i++){ const idx=rng?rng[i]%sets.length:Math.floor(Math.random()*sets.length); out+=sets.charAt(idx); } return out; }
 
+  function timeAgo(ts){
+    if(!ts) return '-';
+    const s = Math.floor((Date.now()-ts)/1000);
+    if(s < 60) return s + 's ago';
+    const m = Math.floor(s/60);
+    if(m < 60) return m + 'm ago';
+    const h = Math.floor(m/60);
+    if(h < 24) return h + 'h ago';
+    const d = Math.floor(h/24);
+    return d + 'd ago';
+  }
+
+  // simple toast
+  function showToast(msg){
+    const t = document.createElement('div');
+    t.className = 'fixed bottom-8 right-8 bg-black/70 text-white px-4 py-2 rounded-md z-60';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(()=>{ t.remove(); }, 1500);
+  }
+
+  // modal open/close
+  function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); setTimeout(()=> titleEl.focus(),80); }
+  function closeModalFn(){ modal.classList.add('hidden'); modal.classList.remove('flex'); form.reset(); editId=null; document.getElementById('save').textContent='Add'; }
+
+  function updateCategoryCounts(){
+    // update All count
+    const allCount = entries.length;
+    const elAll = document.getElementById('countAll');
+    if(elAll) elAll.textContent = allCount;
+  }
+
+  // ensure initial sort and category UI set
+  setActiveCategory('All');
+  setSortMode('az');
+
+</script>
 </body>
 </html>
