@@ -350,50 +350,55 @@
     }
 
     // ---------------- GITHUB LOAD / SAVE ----------------
-    async function loadVault(){
-      try{
-        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`,{
-          headers:{Authorization:'token '+GITHUB_TOKEN}
+// ---------------- GITHUB LOAD / SAVE ----------------
+    async function loadVault() {
+      try {
+        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`, {
+          headers: { Authorization: 'token ' + GITHUB_TOKEN }
         });
-        if(!resp.ok) throw new Error('Failed to fetch vault');
+        if (!resp.ok) throw new Error('Failed to fetch vault');
         const data = await resp.json();
-        GITHUB_SHA = data.sha;
-        const content = atob(data.content.replace(/\n/g,''));
+        GITHUB_SHA = data.sha; // always store latest sha
+        const content = atob(data.content.replace(/\n/g, ''));
         entries = JSON.parse(content);
-      }catch(err){
-        // if cannot load, keep entries array as-is (empty or local changes)
+      } catch (err) {
         entries = entries || [];
-        console.warn('Could not load vault',err);
+        console.warn('Could not load vault', err);
       }
     }
 
-    async function saveVault(){
-      try{
-        const content = btoa(JSON.stringify(entries,null,2));
+    async function saveVault() {
+      try {
+        // Always get fresh SHA first to avoid branch creation
+        if (!GITHUB_SHA) await loadVault();
+
+        const content = btoa(JSON.stringify(entries, null, 2));
         const body = {
           message: 'Update vault',
           content,
-          sha: GITHUB_SHA,
+          branch: GITHUB_BRANCH,       // <-- force main branch
           committer: { name: 'Vault Bot', email: 'bot@example.com' },
-          author: { name: 'Vault Bot', email: 'bot@example.com' }
+          author: { name: 'Vault Bot', email: 'bot@example.com' },
+          sha: GITHUB_SHA              // <-- required for updating existing file
         };
-        if(GITHUB_SHA) body.sha = GITHUB_SHA;
 
-        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
-          method:'PUT',
-          headers:{Authorization:'token '+GITHUB_TOKEN,'Content-Type':'application/json'},
-          body:JSON.stringify(body)
+        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`, {
+          method: 'PUT',
+          headers: { Authorization: 'token ' + GITHUB_TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
         });
-        if(!resp.ok){
+
+        if (!resp.ok) {
           const text = await resp.text();
           throw new Error(text || 'Failed to save vault');
         }
+
         const data = await resp.json();
-        GITHUB_SHA = data.content.sha;
+        GITHUB_SHA = data.content.sha; // update SHA after save
         console.log('Vault saved successfully ✅');
         updateCategoryCounts();
-      }catch(err){
-        alert('Error saving vault: '+(err.message || err));
+      } catch (err) {
+        alert('Error saving vault: ' + (err.message || err));
         console.error(err);
       }
     }
