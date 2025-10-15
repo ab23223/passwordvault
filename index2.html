@@ -349,7 +349,8 @@
     setInterval(loadVault, 30000);
   }
 
-  // ---------------- GITHUB LOAD / SAVE ----------------
+
+  // ---------------- GITHUB LOAD / SAVE ----------------//
   async function loadVault(){
     try{
       const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`,{
@@ -357,11 +358,10 @@
       });
       if(!resp.ok) throw new Error('Failed to fetch vault');
       const data = await resp.json();
-      GITHUB_SHA = data.sha;
+      GITHUB_SHA = data.sha; // store SHA for next save
       const content = atob(data.content.replace(/\n/g,''));
       entries = JSON.parse(content);
     }catch(err){
-      // if cannot load, keep entries array as-is (empty or local changes)
       entries = entries || [];
       console.warn('Could not load vault',err);
     }
@@ -369,11 +369,24 @@
 
   async function saveVault(){
     try{
+      // Always get fresh SHA first to avoid conflicts
+      try {
+        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`, {
+          headers: { Authorization: 'token ' + GITHUB_TOKEN }
+        });
+        if(resp.ok){
+          const data = await resp.json();
+          GITHUB_SHA = data.sha; // update SHA
+        } else {
+          GITHUB_SHA = null; // file doesn't exist yet
+        }
+      } catch { GITHUB_SHA = null; }
+
       const content = btoa(JSON.stringify(entries,null,2));
       const body = {
         message: 'Update vault',
         content,
-        sha: GITHUB_SHA,
+        branch: GITHUB_BRANCH,
         committer: { name: 'Vault Bot', email: 'bot@example.com' },
         author: { name: 'Vault Bot', email: 'bot@example.com' }
       };
@@ -389,7 +402,7 @@
         throw new Error(text || 'Failed to save vault');
       }
       const data = await resp.json();
-      GITHUB_SHA = data.content.sha;
+      GITHUB_SHA = data.content.sha; // store SHA for next update
       console.log('Vault saved successfully ✅');
       updateCategoryCounts();
     }catch(err){
@@ -397,6 +410,7 @@
       console.error(err);
     }
   }
+
 
   // ---------------- EXPORT / IMPORT ----------------
   function exportEntries(){
