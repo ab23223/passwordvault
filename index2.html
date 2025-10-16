@@ -144,6 +144,10 @@
 
         </div>
 
+        <button id="syncBtn" class="px-4 py-2 rounded-full border border-white/6 text-sm hover:bg-white/3">Sync</button>
+        <button id="tokenBtn" class="px-4 py-2 rounded-full border border-white/6 text-sm hover:bg-white/3 hidden">Set Token</button>
+
+
         <div class="flex items-center gap-3">
           <input id="searchMain" type="search" placeholder="Search site/email/note" class="hidden md:inline-block w-72 bg-black/10 placeholder-nordmuted text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-nordprimary"/>
           <button id="exportBtn" class="px-4 py-2 rounded-full border border-white/6 text-sm hover:bg-white/3">Export</button>
@@ -351,36 +355,61 @@
 
 
   // ---------------- GITHUB LOAD / SAVE ----------------//
+  // --- Improved loadVault ---
   async function loadVault(){
     try{
+      if(!GITHUB_TOKEN) throw new Error('Missing GitHub token (not signed in on this device).');
       const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`,{
-        headers:{Authorization:'token '+GITHUB_TOKEN}
+        headers:{ Authorization: 'token ' + GITHUB_TOKEN }
       });
-      if(!resp.ok) throw new Error('Failed to fetch vault');
+      if(resp.status === 401 || resp.status === 403){
+        throw new Error('Unauthorized: check your token scopes (repo) or re-enter token on this device.');
+      }
+      if(resp.status === 404){
+        GITHUB_SHA = null;
+        entries = [];
+        return entries;
+      }
+      if(!resp.ok) {
+        const txt = await resp.text().catch(()=>resp.statusText);
+        throw new Error('Failed to fetch vault: ' + txt);
+      }
       const data = await resp.json();
-      GITHUB_SHA = data.sha; // store SHA for next save
+      GITHUB_SHA = data.sha;
       const content = atob(data.content.replace(/\n/g,''));
       entries = JSON.parse(content);
+      return entries;
     }catch(err){
+      console.warn('loadVault error', err);
+      showToast(err.message || 'Could not load vault');
       entries = entries || [];
-      console.warn('Could not load vault',err);
+      return entries;
     }
   }
 
+  // --- Improved saveVault ---
   async function saveVault(){
     try{
-      // Always get fresh SHA first to avoid conflicts
+      if(!GITHUB_TOKEN) throw new Error('Missing GitHub token (not signed in on this device).');
+
+      // fetch latest SHA (if any)
       try {
-        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`, {
+        const head = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`, {
           headers: { Authorization: 'token ' + GITHUB_TOKEN }
         });
-        if(resp.ok){
-          const data = await resp.json();
-          GITHUB_SHA = data.sha; // update SHA
+        if(head.ok){
+          const dataHead = await head.json();
+          GITHUB_SHA = dataHead.sha;
+        } else if(head.status === 404) {
+          GITHUB_SHA = null;
+        } else if(head.status === 401 || head.status === 403){
+          throw new Error('Unauthorized: invalid token or missing repo access.');
         } else {
-          GITHUB_SHA = null; // file doesn't exist yet
+          GITHUB_SHA = GITHUB_SHA || null;
         }
-      } catch { GITHUB_SHA = null; }
+      } catch (exHead) {
+        console.warn('Could not get latest SHA, proceeding with existing GITHUB_SHA', exHead);
+      }
 
       const content = btoa(JSON.stringify(entries,null,2));
       const body = {
@@ -394,20 +423,53 @@
 
       const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
         method:'PUT',
-        headers:{Authorization:'token '+GITHUB_TOKEN,'Content-Type':'application/json'},
-        body:JSON.stringify(body)
+        headers:{ Authorization: 'token ' + GITHUB_TOKEN, 'Content-Type':'application/json' },
+        body: JSON.stringify(body)
       });
-      if(!resp.ok){
-        const text = await resp.text();
-        throw new Error(text || 'Failed to save vault');
+
+      if(resp.ok){
+        const data = await resp.json();
+        GITHUB_SHA = data.content.sha;
+        console.log('Vault saved successfully ✅');
+        updateCategoryCounts();
+        showToast('Saved');
+        return true;
       }
-      const data = await resp.json();
-      GITHUB_SHA = data.content.sha; // store SHA for next update
-      console.log('Vault saved successfully ✅');
-      updateCategoryCounts();
+
+      const text = await resp.text().catch(()=>null);
+      if(resp.status === 409 || (text && /merge/i.test(text))) {
+        console.warn('Conflict detected when saving — fetching latest and retrying once');
+        await loadVault();
+        const retryBody = {
+          message: 'Update vault (retry after conflict)',
+          content: btoa(JSON.stringify(entries,null,2)),
+          branch: GITHUB_BRANCH,
+          committer: { name: 'Vault Bot', email: 'bot@example.com' },
+          author: { name: 'Vault Bot', email: 'bot@example.com' }
+        };
+        if(GITHUB_SHA) retryBody.sha = GITHUB_SHA;
+        const retryResp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
+          method:'PUT',
+          headers:{ Authorization: 'token ' + GITHUB_TOKEN, 'Content-Type':'application/json' },
+          body: JSON.stringify(retryBody)
+        });
+        if(retryResp.ok){
+          const data2 = await retryResp.json();
+          GITHUB_SHA = data2.content.sha;
+          showToast('Saved (after resolving)');
+          return true;
+        } else {
+          const t2 = await retryResp.text().catch(()=>retryResp.statusText);
+          throw new Error('Retry failed: ' + t2);
+        }
+      }
+
+      throw new Error(text || resp.statusText || 'Failed to save vault');
     }catch(err){
-      alert('Error saving vault: '+(err.message || err));
-      console.error(err);
+      console.error('saveVault error', err);
+      showToast('Save failed: ' + (err.message||err));
+      alert('Error saving vault: ' + (err.message||err));
+      return false;
     }
   }
 
@@ -678,6 +740,69 @@
   // ensure initial sort and category UI set
   setActiveCategory('All');
   setSortMode('az');
+
+  // ---------- Token & Sync UI ----------
+  const tokenBtn = document.getElementById('tokenBtn');
+  const syncBtn  = document.getElementById('syncBtn');
+
+  function ensureTokenUI(){
+    if(!GITHUB_TOKEN){
+      if(tokenBtn) tokenBtn.style.display = 'inline-block';
+    } else {
+      if(tokenBtn) tokenBtn.style.display = 'none';
+    }
+  }
+
+  if(tokenBtn){
+    tokenBtn.addEventListener('click', async ()=>{
+      const t = prompt('Paste your GitHub Personal Access Token (repo scope). It will be stored in browser only.');
+      if(t){
+        localStorage.setItem('vaultGitHubToken', t);
+        GITHUB_TOKEN = t;
+        showToast('Token saved — syncing...');
+        await syncNow();
+        ensureTokenUI();
+      }
+    });
+  }
+
+  if(syncBtn){
+    syncBtn.addEventListener('click', async ()=>{
+      syncBtn.disabled = true;
+      await syncNow();
+      syncBtn.disabled = false;
+    });
+  }
+
+  async function syncNow(){
+    if(!GITHUB_TOKEN){
+      const t = prompt('Paste your GitHub Personal Access Token (repo scope) to sync this device:');
+      if(!t) { showToast('Sync cancelled (no token)'); return; }
+      localStorage.setItem('vaultGitHubToken', t);
+      GITHUB_TOKEN = t;
+    }
+    try{
+      await loadVault();
+      applySort();
+      render();
+      updateCategoryCounts();
+      showToast('Synced');
+    }catch(err){
+      console.warn('syncNow failed', err);
+      showToast('Sync failed: ' + (err.message||err));
+    } finally {
+      ensureTokenUI();
+    }
+  }
+
+  document.addEventListener('visibilitychange', ()=> {
+    if(document.visibilityState === 'visible'){
+      setTimeout(()=> { syncNow(); }, 250);
+    }
+  });
+
+  ensureTokenUI();
+
 
 </script>
 </body>
