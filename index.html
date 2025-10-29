@@ -301,648 +301,649 @@
   <!-- hidden file input -->
   <input id="fileInput" type="file" accept="application/json" style="display:none" />
 
-<script>
-  // --- CONFIG ---
-  const GITHUB_USER = 'ab23223';
-  const GITHUB_REPO = 'passwordvault';
-  const GITHUB_BRANCH = 'test';
-  const VAULT_FILE_PATH = 'vault-data.json';
+  <script>
+    // --- CONFIG ---
+    const GITHUB_USER = 'ab23223';
+    const GITHUB_REPO = 'passwordvault';
+    const GITHUB_BRANCH = 'test';
+    const VAULT_FILE_PATH = 'vault-data.json';
 
-  let GITHUB_TOKEN = null;
-  let GITHUB_SHA = null;
+    let GITHUB_TOKEN = null;
+    let GITHUB_SHA = null;
 
-  // Form & UI elements
-  const form = document.getElementById('entryForm');
-  const titleEl = document.getElementById('title');
-  const urlEl = document.getElementById('url');
-  const emailEl = document.getElementById('email');
-  const passwordEl = document.getElementById('password');
-  const noteEl = document.getElementById('note');
-  const categoryEl = document.getElementById('category');
+    // Form & UI elements
+    const form = document.getElementById('entryForm');
+    const titleEl = document.getElementById('title');
+    const urlEl = document.getElementById('url');
+    const emailEl = document.getElementById('email');
+    const passwordEl = document.getElementById('password');
+    const noteEl = document.getElementById('note');
+    const categoryEl = document.getElementById('category');
 
-  const listEl = document.getElementById('list');
-  const countEl = document.getElementById('count');
-  const searchMain = document.getElementById('searchMain');
-  const sidebarSearch = document.getElementById('sidebarSearch');
+    const listEl = document.getElementById('list');
+    const countEl = document.getElementById('count');
+    const searchMain = document.getElementById('searchMain');
+    const sidebarSearch = document.getElementById('sidebarSearch');
 
-  const genBtn = document.getElementById('gen');
-  const exportBtn = document.getElementById('exportBtn');
-  const importBtn = document.getElementById('importBtn');
-  const fileInput = document.getElementById('fileInput');
-  const clearBtn = document.getElementById('clear');
-  const addItemBtn = document.getElementById('addItemBtn');
-  const sidebarGen = document.getElementById('sidebarGen');
+    const genBtn = document.getElementById('gen');
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const fileInput = document.getElementById('fileInput');
+    const clearBtn = document.getElementById('clear');
+    const addItemBtn = document.getElementById('addItemBtn');
+    const sidebarGen = document.getElementById('sidebarGen');
 
-  const modal = document.getElementById('modal');
-  const modalBackdrop = document.getElementById('modalBackdrop');
-  const closeModal = document.getElementById('closeModal');
+    const modal = document.getElementById('modal');
+    const modalBackdrop = document.getElementById('modalBackdrop');
+    const closeModal = document.getElementById('closeModal');
 
-  const sortBtn = document.getElementById('sortBtn');
-  const sortMenu = document.getElementById('sortMenu');
-  const sortLabel = document.getElementById('sortLabel');
+    const sortBtn = document.getElementById('sortBtn');
+    const sortMenu = document.getElementById('sortMenu');
+    const sortLabel = document.getElementById('sortLabel');
 
-  // sidebar category buttons
-  const sidebarBtns = Array.from(document.querySelectorAll('button[data-cat]'));
-  const catButtons = {
-    All: document.getElementById('cat-All'),
-    Passkeys: document.getElementById('cat-Passkeys'),
-    Logins: document.getElementById('cat-Logins'),
-    Wifi: document.getElementById('cat-Wifi'),
-    "Personal Info": document.getElementById('cat-Personal Info')
-  };
+    // sidebar category buttons
+    const sidebarBtns = Array.from(document.querySelectorAll('button[data-cat]'));
+    const catButtons = {
+      All: document.getElementById('cat-All'),
+      Passkeys: document.getElementById('cat-Passkeys'),
+      Logins: document.getElementById('cat-Logins'),
+      Wifi: document.getElementById('cat-Wifi'),
+      "Personal Info": document.getElementById('cat-Personal Info')
+    };
 
-  // app state
-  let entries = [];
-  let editId = null;
-  let activeCategory = 'All'; // All | Passkeys | Logins | Wifi | Personal Info
-  let sortMode = 'az'; // 'az' | 'za' | 'date' ; default A–Z => 'az'
-  sortLabel.textContent = 'A–Z';
+    // app state
+    let entries = [];
+    let editId = null;
+    let activeCategory = 'All'; // All | Passkeys | Logins | Wifi | Personal Info
+    let sortMode = 'az'; // 'az' | 'za' | 'date' ; default A–Z => 'az'
+    sortLabel.textContent = 'A–Z';
 
-  init();
+    init();
 
-  // ---------------- INIT ----------------
-  async function init(){
-    // pull token (same UX as before)
-    GITHUB_TOKEN = localStorage.getItem('vaultGitHubToken');
-    if(!GITHUB_TOKEN){
-      GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
-      if(!GITHUB_TOKEN){ alert('Vault cannot load without token'); return; }
-      localStorage.setItem('vaultGitHubToken', GITHUB_TOKEN);
+    // ---------------- INIT ----------------
+    async function init(){
+      // pull token (same UX as before)
+      GITHUB_TOKEN = localStorage.getItem('vaultGitHubToken');
+      if(!GITHUB_TOKEN){
+        GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
+        if(!GITHUB_TOKEN){ alert('Vault cannot load without token'); return; }
+        localStorage.setItem('vaultGitHubToken', GITHUB_TOKEN);
+      }
+
+      // wire up sidebar buttons
+      Object.keys(catButtons).forEach(cat=>{
+        const btn = catButtons[cat];
+        if(!btn) return;
+        btn.addEventListener('click', ()=>{ setActiveCategory(cat); });
+      });
+
+      // wire up sort menu items
+      Array.from(sortMenu.querySelectorAll('button[data-sort]')).forEach(b=>{
+        b.addEventListener('click', (ev)=>{
+          const mode = ev.currentTarget.dataset.sort;
+          setSortMode(mode);
+          sortMenu.classList.add('hidden');
+        });
+      });
+
+      // other bindings
+      addItemBtn.addEventListener('click', openModal);
+      closeModal.addEventListener('click', closeModalFn);
+      modalBackdrop.addEventListener('click', closeModalFn);
+      document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModalFn(); });
+
+      form.addEventListener('submit', e=>{ e.preventDefault(); saveEntry(); });
+      genBtn.addEventListener('click', ()=>{ passwordEl.value = generatePassword(14); passwordEl.focus(); });
+      sidebarGen.addEventListener('click', ()=>{ openModal(); passwordEl.value = generatePassword(14); });
+
+      clearBtn.addEventListener('click', ()=>{ form.reset(); editId=null; document.getElementById('save').textContent='Add'; });
+
+      [searchMain, sidebarSearch].forEach(inp => { if(inp) inp.addEventListener('input', render); });
+
+      exportBtn.addEventListener('click', exportEntries);
+      if(importBtn) importBtn.addEventListener('click', ()=>fileInput.click());
+      fileInput.addEventListener('change', handleFileImport);
+
+      // sort dropdown toggle
+      sortBtn.addEventListener('click', ()=>{ sortMenu.classList.toggle('hidden'); });
+
+      // ctrl/cmd+F focus
+      window.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){ e.preventDefault(); if(searchMain){ searchMain.focus(); searchMain.select(); } else if(sidebarSearch){ sidebarSearch.focus(); sidebarSearch.select(); } } });
+
+      // load vault
+      try { await loadVault(); } catch(err){ console.warn('loadVault failed',err); }
+      updateCategoryCounts();
+      applySort(); // initial sort (A–Z)
+      render();
+
+      // auto reload
+      setInterval(loadVault, 30000);
     }
 
-    // wire up sidebar buttons
-    Object.keys(catButtons).forEach(cat=>{
-      const btn = catButtons[cat];
-      if(!btn) return;
-      btn.addEventListener('click', ()=>{ setActiveCategory(cat); });
-    });
 
-    // wire up sort menu items
-    Array.from(sortMenu.querySelectorAll('button[data-sort]')).forEach(b=>{
-      b.addEventListener('click', (ev)=>{
-        const mode = ev.currentTarget.dataset.sort;
-        setSortMode(mode);
-        sortMenu.classList.add('hidden');
-      });
-    });
-
-    // other bindings
-    addItemBtn.addEventListener('click', openModal);
-    closeModal.addEventListener('click', closeModalFn);
-    modalBackdrop.addEventListener('click', closeModalFn);
-    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModalFn(); });
-
-    form.addEventListener('submit', e=>{ e.preventDefault(); saveEntry(); });
-    genBtn.addEventListener('click', ()=>{ passwordEl.value = generatePassword(14); passwordEl.focus(); });
-    sidebarGen.addEventListener('click', ()=>{ openModal(); passwordEl.value = generatePassword(14); });
-
-    clearBtn.addEventListener('click', ()=>{ form.reset(); editId=null; document.getElementById('save').textContent='Add'; });
-
-    [searchMain, sidebarSearch].forEach(inp => { if(inp) inp.addEventListener('input', render); });
-
-    exportBtn.addEventListener('click', exportEntries);
-    if(importBtn) importBtn.addEventListener('click', ()=>fileInput.click());
-    fileInput.addEventListener('change', handleFileImport);
-
-    // sort dropdown toggle
-    sortBtn.addEventListener('click', ()=>{ sortMenu.classList.toggle('hidden'); });
-
-    // ctrl/cmd+F focus
-    window.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){ e.preventDefault(); if(searchMain){ searchMain.focus(); searchMain.select(); } else if(sidebarSearch){ sidebarSearch.focus(); sidebarSearch.select(); } } });
-
-    // load vault
-    try { await loadVault(); } catch(err){ console.warn('loadVault failed',err); }
-    updateCategoryCounts();
-    applySort(); // initial sort (A–Z)
-    render();
-
-    // auto reload
-    setInterval(loadVault, 30000);
-  }
-
-
-  // ---------------- GITHUB LOAD / SAVE ----------------//
-  // --- Improved loadVault ---
-  async function loadVault(){
-    try{
-      if(!GITHUB_TOKEN) throw new Error('Missing GitHub token (not signed in on this device).');
-      const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`,{
-        headers:{ Authorization: 'token ' + GITHUB_TOKEN }
-      });
-      if(resp.status === 401 || resp.status === 403){
-        throw new Error('Unauthorized: check your token scopes (repo) or re-enter token on this device.');
-      }
-      if(resp.status === 404){
-        GITHUB_SHA = null;
-        entries = [];
+    // ---------------- GITHUB LOAD / SAVE ----------------//
+    // --- Improved loadVault ---
+    async function loadVault(){
+      try{
+        if(!GITHUB_TOKEN) throw new Error('Missing GitHub token (not signed in on this device).');
+        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`,{
+          headers:{ Authorization: 'token ' + GITHUB_TOKEN }
+        });
+        if(resp.status === 401 || resp.status === 403){
+          throw new Error('Unauthorized: check your token scopes (repo) or re-enter token on this device.');
+        }
+        if(resp.status === 404){
+          GITHUB_SHA = null;
+          entries = [];
+          return entries;
+        }
+        if(!resp.ok) {
+          const txt = await resp.text().catch(()=>resp.statusText);
+          throw new Error('Failed to fetch vault: ' + txt);
+        }
+        const data = await resp.json();
+        GITHUB_SHA = data.sha;
+        const content = atob(data.content.replace(/\n/g,''));
+        entries = JSON.parse(content);
+        return entries;
+      }catch(err){
+        console.warn('loadVault error', err);
+        showToast(err.message || 'Could not load vault');
+        entries = entries || [];
         return entries;
       }
-      if(!resp.ok) {
-        const txt = await resp.text().catch(()=>resp.statusText);
-        throw new Error('Failed to fetch vault: ' + txt);
-      }
-      const data = await resp.json();
-      GITHUB_SHA = data.sha;
-      const content = atob(data.content.replace(/\n/g,''));
-      entries = JSON.parse(content);
-      return entries;
-    }catch(err){
-      console.warn('loadVault error', err);
-      showToast(err.message || 'Could not load vault');
-      entries = entries || [];
-      return entries;
     }
-  }
 
-  // --- Improved saveVault ---
-  async function saveVault(){
-    try{
-      if(!GITHUB_TOKEN) throw new Error('Missing GitHub token (not signed in on this device).');
+    // --- Improved saveVault ---
+    async function saveVault(){
+      try{
+        if(!GITHUB_TOKEN) throw new Error('Missing GitHub token (not signed in on this device).');
 
-      // fetch latest SHA (if any)
-      try {
-        const head = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`, {
-          headers: { Authorization: 'token ' + GITHUB_TOKEN }
-        });
-        if(head.ok){
-          const dataHead = await head.json();
-          GITHUB_SHA = dataHead.sha;
-        } else if(head.status === 404) {
-          GITHUB_SHA = null;
-        } else if(head.status === 401 || head.status === 403){
-          throw new Error('Unauthorized: invalid token or missing repo access.');
-        } else {
-          GITHUB_SHA = GITHUB_SHA || null;
+        // fetch latest SHA (if any)
+        try {
+          const head = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`, {
+            headers: { Authorization: 'token ' + GITHUB_TOKEN }
+          });
+          if(head.ok){
+            const dataHead = await head.json();
+            GITHUB_SHA = dataHead.sha;
+          } else if(head.status === 404) {
+            GITHUB_SHA = null;
+          } else if(head.status === 401 || head.status === 403){
+            throw new Error('Unauthorized: invalid token or missing repo access.');
+          } else {
+            GITHUB_SHA = GITHUB_SHA || null;
+          }
+        } catch (exHead) {
+          console.warn('Could not get latest SHA, proceeding with existing GITHUB_SHA', exHead);
         }
-      } catch (exHead) {
-        console.warn('Could not get latest SHA, proceeding with existing GITHUB_SHA', exHead);
-      }
 
-      const content = btoa(JSON.stringify(entries,null,2));
-      const body = {
-        message: 'Update vault',
-        content,
-        branch: GITHUB_BRANCH,
-        committer: { name: 'Vault Bot', email: 'bot@example.com' },
-        author: { name: 'Vault Bot', email: 'bot@example.com' }
-      };
-      if(GITHUB_SHA) body.sha = GITHUB_SHA;
-
-      const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
-        method:'PUT',
-        headers:{ Authorization: 'token ' + GITHUB_TOKEN, 'Content-Type':'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      if(resp.ok){
-        const data = await resp.json();
-        GITHUB_SHA = data.content.sha;
-        console.log('Vault saved successfully ✅');
-        updateCategoryCounts();
-        showToast('Saved');
-        return true;
-      }
-
-      const text = await resp.text().catch(()=>null);
-      if(resp.status === 409 || (text && /merge/i.test(text))) {
-        console.warn('Conflict detected when saving — fetching latest and retrying once');
-        await loadVault();
-        const retryBody = {
-          message: 'Update vault (retry after conflict)',
-          content: btoa(JSON.stringify(entries,null,2)),
+        const content = btoa(JSON.stringify(entries,null,2));
+        const body = {
+          message: 'Update vault',
+          content,
           branch: GITHUB_BRANCH,
           committer: { name: 'Vault Bot', email: 'bot@example.com' },
           author: { name: 'Vault Bot', email: 'bot@example.com' }
         };
-        if(GITHUB_SHA) retryBody.sha = GITHUB_SHA;
-        const retryResp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
+        if(GITHUB_SHA) body.sha = GITHUB_SHA;
+
+        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
           method:'PUT',
           headers:{ Authorization: 'token ' + GITHUB_TOKEN, 'Content-Type':'application/json' },
-          body: JSON.stringify(retryBody)
+          body: JSON.stringify(body)
         });
-        if(retryResp.ok){
-          const data2 = await retryResp.json();
-          GITHUB_SHA = data2.content.sha;
-          showToast('Saved (after resolving)');
+
+        if(resp.ok){
+          const data = await resp.json();
+          GITHUB_SHA = data.content.sha;
+          console.log('Vault saved successfully ✅');
+          updateCategoryCounts();
+          showToast('Saved');
           return true;
-        } else {
-          const t2 = await retryResp.text().catch(()=>retryResp.statusText);
-          throw new Error('Retry failed: ' + t2);
         }
+
+        const text = await resp.text().catch(()=>null);
+        if(resp.status === 409 || (text && /merge/i.test(text))) {
+          console.warn('Conflict detected when saving — fetching latest and retrying once');
+          await loadVault();
+          const retryBody = {
+            message: 'Update vault (retry after conflict)',
+            content: btoa(JSON.stringify(entries,null,2)),
+            branch: GITHUB_BRANCH,
+            committer: { name: 'Vault Bot', email: 'bot@example.com' },
+            author: { name: 'Vault Bot', email: 'bot@example.com' }
+          };
+          if(GITHUB_SHA) retryBody.sha = GITHUB_SHA;
+          const retryResp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
+            method:'PUT',
+            headers:{ Authorization: 'token ' + GITHUB_TOKEN, 'Content-Type':'application/json' },
+            body: JSON.stringify(retryBody)
+          });
+          if(retryResp.ok){
+            const data2 = await retryResp.json();
+            GITHUB_SHA = data2.content.sha;
+            showToast('Saved (after resolving)');
+            return true;
+          } else {
+            const t2 = await retryResp.text().catch(()=>retryResp.statusText);
+            throw new Error('Retry failed: ' + t2);
+          }
+        }
+
+        throw new Error(text || resp.statusText || 'Failed to save vault');
+      }catch(err){
+        console.error('saveVault error', err);
+        showToast('Save failed: ' + (err.message||err));
+        alert('Error saving vault: ' + (err.message||err));
+        return false;
       }
-
-      throw new Error(text || resp.statusText || 'Failed to save vault');
-    }catch(err){
-      console.error('saveVault error', err);
-      showToast('Save failed: ' + (err.message||err));
-      alert('Error saving vault: ' + (err.message||err));
-      return false;
-    }
-  }
-
-
-  // ---------------- EXPORT / IMPORT ----------------
-  function exportEntries(){
-    const blob = new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download='vault-backup.json'; a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function handleFileImport(e){
-    const file=e.target.files[0]; if(!file) return;
-    const reader=new FileReader();
-    reader.onload=()=>{
-      try{
-        const data=JSON.parse(reader.result);
-        if(!Array.isArray(data)) throw 0;
-        entries=data;
-        saveVault();
-        render();
-        alert('Imported '+data.length+' entries.');
-      }catch{
-        alert('Invalid file');
-      }
-    };
-    reader.readAsText(file); fileInput.value='';
-  }
-
-  // ---------------- CRUD ----------------
-  async function saveEntry(){
-    const title = titleEl.value.trim(); if(!title){ alert('Please add a name/site'); return; }
-    // category value from dropdown
-    const category = (categoryEl.value || 'Logins');
-    const item = { id: editId||cryptoRandomId(), title, url:urlEl.value.trim(), email:emailEl.value.trim(), password:passwordEl.value, note:noteEl.value.trim(), category, updated:Date.now() };
-
-    if(editId){
-      const i = entries.findIndex(x=>x.id===editId);
-      if(i>=0) entries[i]=item;
-      editId = null;
-      document.getElementById('save').textContent='Add';
-    } else {
-      entries.unshift(item);
     }
 
-    applySort();
-    form.reset();
-    await saveVault();
-    render();
-    closeModalFn();
-  }
 
-  async function deleteEntry(id){
-    if(!confirm('Delete this entry?')) return;
-    entries = entries.filter(x=>x.id!==id);
-    await saveVault();
-    render();
-  }
-
-  function populateFormForEdit(e){
-    openModal();
-    titleEl.value=e.title||'';
-    urlEl.value=e.url||'';
-    emailEl.value=e.email||'';
-    passwordEl.value=e.password||'';
-    noteEl.value=e.note||'';
-    categoryEl.value = e.category || 'Logins';
-    editId=e.id;
-    document.getElementById('save').textContent='Save';
-  }
-
-  // ---------------- SORT & FILTER ----------------
-  function applySort(){
-    if(sortMode === 'az'){
-      entries.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
-      sortLabel.textContent = 'A–Z';
-    } else if(sortMode === 'za'){
-      entries.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
-      sortLabel.textContent = 'Z–A';
-    } else if(sortMode === 'date'){
-      entries.sort((a,b)=> (b.updated||0) - (a.updated||0));
-      sortLabel.textContent = 'Last Updated';
+    // ---------------- EXPORT / IMPORT ----------------
+    function exportEntries(){
+      const blob = new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='vault-backup.json'; a.click();
+      URL.revokeObjectURL(url);
     }
-  }
 
-  function setSortMode(mode){
-    sortMode = mode;
-    applySort();
-    render();
-  }
+    function handleFileImport(e){
+      const file=e.target.files[0]; if(!file) return;
+      const reader=new FileReader();
+      reader.onload=()=>{
+        try{
+          const data=JSON.parse(reader.result);
+          if(!Array.isArray(data)) throw 0;
+          entries=data;
+          saveVault();
+          render();
+          alert('Imported '+data.length+' entries.');
+        }catch{
+          alert('Invalid file');
+        }
+      };
+      reader.readAsText(file); fileInput.value='';
+    }
 
-  function setActiveCategory(cat){
-    activeCategory = cat;
-    // UI: heading and selected highlight
-    document.getElementById('headingTitle').textContent = cat === 'All' ? 'All Items' : cat;
-    // remove active class from all
-    Object.values(catButtons).forEach(b => { if(b) b.classList.remove('cat-active'); });
-    const btn = catButtons[cat];
-    if(btn) btn.classList.add('cat-active');
-    render();
-  }
+    // ---------------- CRUD ----------------
+    async function saveEntry(){
+      const title = titleEl.value.trim(); if(!title){ alert('Please add a name/site'); return; }
+      // category value from dropdown
+      const category = (categoryEl.value || 'Logins');
+      const item = { id: editId||cryptoRandomId(), title, url:urlEl.value.trim(), email:emailEl.value.trim(), password:passwordEl.value, note:noteEl.value.trim(), category, updated:Date.now() };
 
-  // ---------------- RENDER ----------------
-  function render(){
-  const q = ((searchMain && searchMain.value) || (sidebarSearch && sidebarSearch.value) || '').trim().toLowerCase();
-  listEl.innerHTML='';
-
-  // apply filtering by category
-  let filtered = entries.slice();
-  if(activeCategory !== 'All'){
-    filtered = filtered.filter(e => (e.category || '') === activeCategory);
-  }
-
-  // apply search filter
-  filtered = filtered.filter(e => {
-    if(!q) return true;
-    return ( (e.title||'') + ' ' + (e.email||'') + ' ' + (e.note||'') + ' ' + (e.url||'') ).toLowerCase().includes(q);
-  });
-
-  // stable sorting
-  if(sortMode === 'az') filtered.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
-  else if(sortMode === 'za') filtered.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
-  else if(sortMode === 'date') filtered.sort((a,b)=> (b.updated||0) - (a.updated||0));
-
-  countEl.textContent = entries.length;
-  updateCategoryCounts();
-
-  if(filtered.length === 0){
-    const empty = document.createElement('div');
-    empty.className = 'text-nordmuted p-4 rounded-lg';
-    empty.textContent = 'No entries yet.';
-    listEl.appendChild(empty);
-    return;
-  }
-
-  filtered.forEach(e=>{
-    const row = document.createElement('div');
-    row.className = 'flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-xl bg-white shadow-sm border border-black/10 hover:-translate-y-0.5 hover:shadow-lg hover:border-blue-400/40 transition-all duration-200 ease-in-out';
-
-
-
-    const left = document.createElement('div');
-    left.className = 'flex items-center gap-4 min-w-0 flex-1';
-
-    const logo = document.createElement('div');
-    logo.className = 'w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0';
-    const logoText = document.createElement('div');
-    logoText.className = 'text-black font-semibold';
-    logoText.textContent = (e.title ? e.title.charAt(0).toUpperCase() : '?');
-    logo.appendChild(logoText);
-
-    const site = document.createElement('div');
-    site.className = 'min-w-0 flex-1 flex flex-col';
-
-    const h = document.createElement('div');
-    h.className = 'text-sm font-semibold truncate';  // title
-    h.textContent = e.title;
-
-    const p = document.createElement('div');
-    p.className = 'text-xs text-nordmuted truncate mt-0.5';  // meta (email, url, note, category)
-    const parts = [];
-    if(e.email) parts.push(escapeHtml(e.email));
-    if(e.url) parts.push(shortUrl(e.url));
-    if(e.note) parts.push('Note');
-    if(e.category) parts.push('['+e.category+']');
-    p.innerHTML = parts.map(part => `<span class="truncate block w-full" title="${part}">${part}</span>`).join(' • ');
-
-
-    site.appendChild(h);
-    site.appendChild(p);
-    left.appendChild(logo);
-    left.appendChild(site);
-
-    // Right container
-    const right = document.createElement('div');
-    right.className = 'flex flex-col md:flex-row items-end md:items-center gap-2 md:gap-3 flex-shrink-0';
-
-
-    const last = document.createElement('div');
-    last.className = 'text-xs text-nordmuted text-right w-28';
-    last.textContent = timeAgo(e.updated);
-
-    const actions = document.createElement('div');
-    actions.className = 'flex flex-wrap gap-2 items-center';
-
-    const pwSpan = document.createElement('span');
-    pwSpan.className = 'text-xs text-nordmuted monospace';
-    pwSpan.textContent = '••••••';
-
-    let showing = false;
-    const pwBtn = document.createElement('button');
-    pwBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
-    pwBtn.textContent = 'Show';
-    pwBtn.addEventListener('click', ()=>{
-      showing = !showing;
-      pwSpan.textContent = showing ? e.password : '••••••';
-      pwBtn.textContent = showing ? 'Hide' : 'Show';
-    });
-
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
-    copyBtn.textContent = 'Copy';
-    copyBtn.addEventListener('click', async ()=>{
-      try{ await navigator.clipboard.writeText(e.password||''); showToast('Copied'); }catch{ prompt('Copy manually', e.password||''); }
-    });
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
-    editBtn.textContent = 'Edit';
-    editBtn.addEventListener('click', ()=> populateFormForEdit(e));
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/6';
-    delBtn.textContent = 'Delete';
-    delBtn.addEventListener('click', ()=> deleteEntry(e.id));
-
-    actions.appendChild(pwSpan);
-    actions.appendChild(pwBtn);
-    actions.appendChild(copyBtn);
-    actions.appendChild(editBtn);
-    actions.appendChild(delBtn);
-
-    right.appendChild(last);
-    right.appendChild(actions);
-
-    row.appendChild(left);
-    row.appendChild(right);
-
-    listEl.appendChild(row);
-  });
-}
-
-  // ---------------- HELPERS ----------------
-  function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-  function shortUrl(u){ try{ return new URL(u).hostname; }catch{return u.length>30?u.slice(0,27)+'...':u; } }
-  function cryptoRandomId(){ return 'id-'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
-  function generatePassword(len){ const sets='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?'; let out=''; const rng=crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(len)):null; for(let i=0;i<len;i++){ const idx=rng?rng[i]%sets.length:Math.floor(Math.random()*sets.length); out+=sets.charAt(idx); } return out; }
-
-  function timeAgo(ts){
-    if(!ts) return '-';
-    const s = Math.floor((Date.now()-ts)/1000);
-    if(s < 60) return s + 's ago';
-    const m = Math.floor(s/60);
-    if(m < 60) return m + 'm ago';
-    const h = Math.floor(m/60);
-    if(h < 24) return h + 'h ago';
-    const d = Math.floor(h/24);
-    return d + 'd ago';
-  }
-
-  // simple toast
-  function showToast(msg){
-    const t = document.createElement('div');
-    t.className = 'fixed bottom-8 right-8 bg-black/70 text-white px-4 py-2 rounded-md z-60';
-    t.textContent = msg;
-    document.body.appendChild(t);
-    setTimeout(()=>{ t.remove(); }, 1500);
-  }
-
-  // modal open/close
-  function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); setTimeout(()=> titleEl.focus(),80); }
-  function closeModalFn(){ modal.classList.add('hidden'); modal.classList.remove('flex'); form.reset(); editId=null; document.getElementById('save').textContent='Add'; }
-
-  function updateCategoryCounts(){
-    // update All count
-    const allCount = entries.length;
-    const elAll = document.getElementById('countAll');
-    if(elAll) elAll.textContent = allCount;
-  }
-
-  // ensure initial sort and category UI set
-  setActiveCategory('All');
-  setSortMode('az');
-
-  // --- Mobile Sidebar toggle & responsive helpers ---
-  const hamburger = document.getElementById('hamburger');
-  const sidebar = document.getElementById('sidebar');
-  const sidebarBackdropEl = document.getElementById('sidebarBackdrop');
-
-  function openSidebar() {
-    if (!sidebar) return;
-    sidebar.classList.add('open');
-    if (sidebarBackdropEl) sidebarBackdropEl.classList.add('show');
-    // prevent body scroll when sidebar open
-    document.body.style.overflow = 'hidden';
-  }
-  function closeSidebar() {
-    if (!sidebar) return;
-    sidebar.classList.remove('open');
-    if (sidebarBackdropEl) sidebarBackdropEl.classList.remove('show');
-    document.body.style.overflow = '';
-  }
-  function toggleSidebar() {
-    if (!sidebar) return;
-    if (sidebar.classList.contains('open')) closeSidebar();
-    else openSidebar();
-  }
-
-  if (hamburger) hamburger.addEventListener('click', toggleSidebar);
-  if (sidebarBackdropEl) sidebarBackdropEl.addEventListener('click', closeSidebar);
-
-  // Auto-close sidebar if user picks a category — makes mobile easier
-  document.querySelectorAll('button[data-cat]').forEach(b => {
-    b.addEventListener('click', () => {
-      // small timeout so the click finishes UI changes (optional)
-      setTimeout(closeSidebar, 100);
-    });
-  });
-
-  // Close sidebar automatically when resizing to desktop
-  window.addEventListener('resize', () => {
-    if (window.innerWidth > 760) closeSidebar();
-  });
-
-  // Ensure that addItemBtn isn't hidden off-screen on tiny phones:
-  // Move Add Item into a visible region if viewport is narrow (optional)
-  (function ensureAddButtonVisible() {
-    const addBtn = document.getElementById('addItemBtn');
-    if (!addBtn) return;
-    // on very narrow screens, slightly enlarge tap area
-    function adjust() {
-      if (window.innerWidth <= 420) {
-        addBtn.classList.remove('px-4'); addBtn.classList.add('px-3');
+      if(editId){
+        const i = entries.findIndex(x=>x.id===editId);
+        if(i>=0) entries[i]=item;
+        editId = null;
+        document.getElementById('save').textContent='Add';
       } else {
-        addBtn.classList.remove('px-3'); addBtn.classList.add('px-4');
+        entries.unshift(item);
+      }
+
+      applySort();
+      form.reset();
+      await saveVault();
+      render();
+      closeModalFn();
+    }
+
+    async function deleteEntry(id){
+      if(!confirm('Delete this entry?')) return;
+      entries = entries.filter(x=>x.id!==id);
+      await saveVault();
+      render();
+    }
+
+    function populateFormForEdit(e){
+      openModal();
+      titleEl.value=e.title||'';
+      urlEl.value=e.url||'';
+      emailEl.value=e.email||'';
+      passwordEl.value=e.password||'';
+      noteEl.value=e.note||'';
+      categoryEl.value = e.category || 'Logins';
+      editId=e.id;
+      document.getElementById('save').textContent='Save';
+    }
+
+    // ---------------- SORT & FILTER ----------------
+    function applySort(){
+      if(sortMode === 'az'){
+        entries.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
+        sortLabel.textContent = 'A–Z';
+      } else if(sortMode === 'za'){
+        entries.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
+        sortLabel.textContent = 'Z–A';
+      } else if(sortMode === 'date'){
+        entries.sort((a,b)=> (b.updated||0) - (a.updated||0));
+        sortLabel.textContent = 'Last Updated';
       }
     }
-    adjust();
-    window.addEventListener('resize', adjust);
-  })();
 
-  // Finally, when modal opens, close the sidebar (so mobile has full screen for modal)
-  const origOpenModal = openModal;
-  window.openModal = function(){
-    closeSidebar();
-    origOpenModal();
-  };
-
-  // run once at startup to ensure correct state (in case token UI was toggled earlier)
-  if (window.innerWidth > 760) closeSidebar(); else closeSidebar();
-
-
-  // ---------- Token & Sync UI ----------
-  const tokenBtn = document.getElementById('tokenBtn');
-  const syncBtn  = document.getElementById('syncBtn');
-
-  function ensureTokenUI(){
-    if(!GITHUB_TOKEN){
-      if(tokenBtn) tokenBtn.style.display = 'inline-block';
-    } else {
-      if(tokenBtn) tokenBtn.style.display = 'none';
-    }
-  }
-
-  if(tokenBtn){
-    tokenBtn.addEventListener('click', async ()=>{
-      const t = prompt('Paste your GitHub Personal Access Token (repo scope). It will be stored in browser only.');
-      if(t){
-        localStorage.setItem('vaultGitHubToken', t);
-        GITHUB_TOKEN = t;
-        showToast('Token saved — syncing...');
-        await syncNow();
-        ensureTokenUI();
-      }
-    });
-  }
-
-  if(syncBtn){
-    syncBtn.addEventListener('click', async ()=>{
-      syncBtn.disabled = true;
-      await syncNow();
-      syncBtn.disabled = false;
-    });
-  }
-
-  async function syncNow(){
-    if(!GITHUB_TOKEN){
-      const t = prompt('Paste your GitHub Personal Access Token (repo scope) to sync this device:');
-      if(!t) { showToast('Sync cancelled (no token)'); return; }
-      localStorage.setItem('vaultGitHubToken', t);
-      GITHUB_TOKEN = t;
-    }
-    try{
-      await loadVault();
+    function setSortMode(mode){
+      sortMode = mode;
       applySort();
       render();
-      updateCategoryCounts();
-      showToast('Synced');
-    }catch(err){
-      console.warn('syncNow failed', err);
-      showToast('Sync failed: ' + (err.message||err));
-    } finally {
-      ensureTokenUI();
     }
+
+    function setActiveCategory(cat){
+      activeCategory = cat;
+      // UI: heading and selected highlight
+      document.getElementById('headingTitle').textContent = cat === 'All' ? 'All Items' : cat;
+      // remove active class from all
+      Object.values(catButtons).forEach(b => { if(b) b.classList.remove('cat-active'); });
+      const btn = catButtons[cat];
+      if(btn) btn.classList.add('cat-active');
+      render();
+    }
+
+    // ---------------- RENDER ----------------
+    function render(){
+    const q = ((searchMain && searchMain.value) || (sidebarSearch && sidebarSearch.value) || '').trim().toLowerCase();
+    listEl.innerHTML='';
+
+    // apply filtering by category
+    let filtered = entries.slice();
+    if(activeCategory !== 'All'){
+      filtered = filtered.filter(e => (e.category || '') === activeCategory);
+    }
+
+    // apply search filter
+    filtered = filtered.filter(e => {
+      if(!q) return true;
+      return ( (e.title||'') + ' ' + (e.email||'') + ' ' + (e.note||'') + ' ' + (e.url||'') ).toLowerCase().includes(q);
+    });
+
+    // stable sorting
+    if(sortMode === 'az') filtered.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
+    else if(sortMode === 'za') filtered.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
+    else if(sortMode === 'date') filtered.sort((a,b)=> (b.updated||0) - (a.updated||0));
+
+    countEl.textContent = entries.length;
+    updateCategoryCounts();
+
+    if(filtered.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'text-nordmuted p-4 rounded-lg';
+      empty.textContent = 'No entries yet.';
+      listEl.appendChild(empty);
+      return;
+    }
+
+    filtered.forEach(e=>{
+      const row = document.createElement('div');
+      row.className = 'flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-xl bg-white shadow-sm border border-black/10 hover:-translate-y-0.5 hover:shadow-lg hover:border-blue-400/40 transition-all duration-200 ease-in-out';
+
+
+
+      const left = document.createElement('div');
+      left.className = 'flex items-center gap-4 min-w-0 flex-1';
+
+      const logo = document.createElement('div');
+      logo.className = 'w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0';
+      const logoText = document.createElement('div');
+      logoText.className = 'text-black font-semibold';
+      logoText.textContent = (e.title ? e.title.charAt(0).toUpperCase() : '?');
+      logo.appendChild(logoText);
+
+      const site = document.createElement('div');
+      site.className = 'min-w-0 flex-1 flex flex-col';
+
+      const h = document.createElement('div');
+      h.className = 'text-sm font-semibold truncate';  // title
+      h.textContent = e.title;
+
+      const p = document.createElement('div');
+      p.className = 'text-xs text-nordmuted truncate mt-0.5';  // meta (email, url, note, category)
+      const parts = [];
+      if(e.email) parts.push(escapeHtml(e.email));
+      if(e.url) parts.push(shortUrl(e.url));
+      if(e.note) parts.push('Note');
+      if(e.category) parts.push('['+e.category+']');
+      p.innerHTML = parts.map(part => `<span class="truncate block w-full" title="${part}">${part}</span>`).join(' • ');
+
+
+      site.appendChild(h);
+      site.appendChild(p);
+      left.appendChild(logo);
+      left.appendChild(site);
+
+      // Right container
+      const right = document.createElement('div');
+      right.className = 'flex flex-col md:flex-row items-end md:items-center gap-2 md:gap-3 flex-shrink-0';
+
+
+      const last = document.createElement('div');
+      last.className = 'text-xs text-nordmuted text-right w-28';
+      last.textContent = timeAgo(e.updated);
+
+      const actions = document.createElement('div');
+      actions.className = 'flex flex-wrap gap-2 items-center';
+
+      const pwSpan = document.createElement('span');
+      pwSpan.className = 'text-xs text-nordmuted monospace';
+      pwSpan.textContent = '••••••';
+
+      let showing = false;
+      const pwBtn = document.createElement('button');
+      pwBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+      pwBtn.textContent = 'Show';
+      pwBtn.addEventListener('click', ()=>{
+        showing = !showing;
+        pwSpan.textContent = showing ? e.password : '••••••';
+        pwBtn.textContent = showing ? 'Hide' : 'Show';
+      });
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+      copyBtn.textContent = 'Copy';
+      copyBtn.addEventListener('click', async ()=>{
+        try{ await navigator.clipboard.writeText(e.password||''); showToast('Copied'); }catch{ prompt('Copy manually', e.password||''); }
+      });
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+      editBtn.textContent = 'Edit';
+      editBtn.addEventListener('click', ()=> populateFormForEdit(e));
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/6';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', ()=> deleteEntry(e.id));
+
+      actions.appendChild(pwSpan);
+      actions.appendChild(pwBtn);
+      actions.appendChild(copyBtn);
+      actions.appendChild(editBtn);
+      actions.appendChild(delBtn);
+
+      right.appendChild(last);
+      right.appendChild(actions);
+
+      row.appendChild(left);
+      row.appendChild(right);
+
+      listEl.appendChild(row);
+    });
   }
 
-  document.addEventListener('visibilitychange', ()=> {
-    if(document.visibilityState === 'visible'){
-      setTimeout(()=> { syncNow(); }, 250);
+    // ---------------- HELPERS ----------------
+    function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function shortUrl(u){ try{ return new URL(u).hostname; }catch{return u.length>30?u.slice(0,27)+'...':u; } }
+    function cryptoRandomId(){ return 'id-'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
+    function generatePassword(len){ const sets='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?'; let out=''; const rng=crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(len)):null; for(let i=0;i<len;i++){ const idx=rng?rng[i]%sets.length:Math.floor(Math.random()*sets.length); out+=sets.charAt(idx); } return out; }
+
+    function timeAgo(ts){
+      if(!ts) return '-';
+      const s = Math.floor((Date.now()-ts)/1000);
+      if(s < 60) return s + 's ago';
+      const m = Math.floor(s/60);
+      if(m < 60) return m + 'm ago';
+      const h = Math.floor(m/60);
+      if(h < 24) return h + 'h ago';
+      const d = Math.floor(h/24);
+      return d + 'd ago';
     }
-  });
 
-  ensureTokenUI();
+    // simple toast
+    function showToast(msg){
+      const t = document.createElement('div');
+      t.className = 'fixed bottom-8 right-8 bg-black/70 text-white px-4 py-2 rounded-md z-60';
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(()=>{ t.remove(); }, 1500);
+    }
+
+    // modal open/close
+    function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); setTimeout(()=> titleEl.focus(),80); }
+    function closeModalFn(){ modal.classList.add('hidden'); modal.classList.remove('flex'); form.reset(); editId=null; document.getElementById('save').textContent='Add'; }
+
+    function updateCategoryCounts(){
+      // update All count
+      const allCount = entries.length;
+      const elAll = document.getElementById('countAll');
+      if(elAll) elAll.textContent = allCount;
+    }
+
+    // ensure initial sort and category UI set
+    setActiveCategory('All');
+    setSortMode('az');
+
+    // --- Mobile Sidebar toggle & responsive helpers ---
+    const hamburger = document.getElementById('hamburger');
+    const sidebar = document.getElementById('sidebar');
+    const sidebarBackdropEl = document.getElementById('sidebarBackdrop');
+
+    function openSidebar() {
+      if (!sidebar) return;
+      sidebar.classList.add('open');
+      if (sidebarBackdropEl) sidebarBackdropEl.classList.add('show');
+      // prevent body scroll when sidebar open
+      document.body.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+      if (!sidebar) return;
+      sidebar.classList.remove('open');
+      if (sidebarBackdropEl) sidebarBackdropEl.classList.remove('show');
+      document.body.style.overflow = '';
+    }
+    function toggleSidebar() {
+      if (!sidebar) return;
+      if (sidebar.classList.contains('open')) closeSidebar();
+      else openSidebar();
+    }
+
+    if (hamburger) hamburger.addEventListener('click', toggleSidebar);
+    if (sidebarBackdropEl) sidebarBackdropEl.addEventListener('click', closeSidebar);
+
+    // Auto-close sidebar if user picks a category — makes mobile easier
+    document.querySelectorAll('button[data-cat]').forEach(b => {
+      b.addEventListener('click', () => {
+        // small timeout so the click finishes UI changes (optional)
+        setTimeout(closeSidebar, 100);
+      });
+    });
+
+    // Close sidebar automatically when resizing to desktop
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 760) closeSidebar();
+    });
+
+    // Ensure that addItemBtn isn't hidden off-screen on tiny phones:
+    // Move Add Item into a visible region if viewport is narrow (optional)
+    (function ensureAddButtonVisible() {
+      const addBtn = document.getElementById('addItemBtn');
+      if (!addBtn) return;
+      // on very narrow screens, slightly enlarge tap area
+      function adjust() {
+        if (window.innerWidth <= 420) {
+          addBtn.classList.remove('px-4'); addBtn.classList.add('px-3');
+        } else {
+          addBtn.classList.remove('px-3'); addBtn.classList.add('px-4');
+        }
+      }
+      adjust();
+      window.addEventListener('resize', adjust);
+    })();
+
+    // Finally, when modal opens, close the sidebar (so mobile has full screen for modal)
+    const origOpenModal = openModal;
+    window.openModal = function(){
+      closeSidebar();
+      origOpenModal();
+    };
+
+    // run once at startup to ensure correct state (in case token UI was toggled earlier)
+    if (window.innerWidth > 760) closeSidebar(); else closeSidebar();
 
 
-</script>
+    // ---------- Token & Sync UI ----------
+    const tokenBtn = document.getElementById('tokenBtn');
+    const syncBtn  = document.getElementById('syncBtn');
+
+    function ensureTokenUI(){
+      if(!GITHUB_TOKEN){
+        if(tokenBtn) tokenBtn.style.display = 'inline-block';
+      } else {
+        if(tokenBtn) tokenBtn.style.display = 'none';
+      }
+    }
+
+    if(tokenBtn){
+      tokenBtn.addEventListener('click', async ()=>{
+        const t = prompt('Paste your GitHub Personal Access Token (repo scope). It will be stored in browser only.');
+        if(t){
+          localStorage.setItem('vaultGitHubToken', t);
+          GITHUB_TOKEN = t;
+          showToast('Token saved — syncing...');
+          await syncNow();
+          ensureTokenUI();
+        }
+      });
+    }
+
+    if(syncBtn){
+      syncBtn.addEventListener('click', async ()=>{
+        syncBtn.disabled = true;
+        await syncNow();
+        syncBtn.disabled = false;
+      });
+    }
+
+    async function syncNow(){
+      if(!GITHUB_TOKEN){
+        const t = prompt('Paste your GitHub Personal Access Token (repo scope) to sync this device:');
+        if(!t) { showToast('Sync cancelled (no token)'); return; }
+        localStorage.setItem('vaultGitHubToken', t);
+        GITHUB_TOKEN = t;
+      }
+      try{
+        await loadVault();
+        applySort();
+        render();
+        updateCategoryCounts();
+        showToast('Synced');
+      }catch(err){
+        console.warn('syncNow failed', err);
+        showToast('Sync failed: ' + (err.message||err));
+      } finally {
+        ensureTokenUI();
+      }
+    }
+
+    document.addEventListener('visibilitychange', ()=> {
+      if(document.visibilityState === 'visible'){
+        setTimeout(()=> { syncNow(); }, 250);
+      }
+    });
+
+    ensureTokenUI();
+
+
+  </script>
+
 </body>
 </html>
