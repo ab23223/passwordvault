@@ -3,542 +3,945 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Simple Password Vault</title>
+  <title>Ashtons Password Vault — NordPass-style (Tailwind)</title>
+
+  <!-- Tailwind Play CDN config + CDN -->
+  <script>
+    tailwind = {
+      config: {
+        theme: {
+          extend: {
+            colors: {
+              nordbg: '#1f2326',
+              nordpanel: '#2a2f33',
+              nordmuted: '#9aa2a6',
+              nordaccent: '#dfe6e9',
+              nordprimary: '#4f98ff',
+              nordglass: 'rgba(255,255,255,0.03)'
+            },
+            borderRadius: {
+              'lg-2': '12px'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
-  :root {
-    --bg: #f9fafb;
-    --card: #fff;
-    --accent: #111827;
-    --accent-light: #1f2937;
-    --muted: #6b7280;
-    --primary: #3b82f6;
-    --border: #e5e7eb;
-    --shadow: rgba(0,0,0,0.06);
-  }
-
-  * {
-    box-sizing: border-box;
-  }
-
-  body {
-    margin: 0;
-    padding: 20px;
-    font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--accent-light);
-    line-height: 1.5;
-  }
-
-  .wrap {
-    max-width: 900px;
-    margin: 0 auto;
-  }
-
-  header {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-  }
-
-  h1 {
-    font-size: 28px;
-    font-weight: 600;
-    margin: 0;
-  }
-
-  .controls {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  input[type="search"] {
-    padding: 10px 12px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: #fff;
-    transition: border 0.2s, box-shadow 0.2s;
-  }
-  input[type="search"]:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
-  }
-
-  .card {
-    background: var(--card);
-    padding: 20px;
-    border-radius: 14px;
-    box-shadow: 0 2px 10px var(--shadow);
-    margin-top: 12px;
-  }
-
-  form {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-
-  label {
-    font-size: 13px;
-    color: var(--muted);
-    font-weight: 500;
-    display: block;
-    margin-bottom: 4px;
-  }
-
-  input, textarea, select {
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    width: 100%;
-    font-size: 14px;
-    background: #fff;
-    transition: border 0.2s, box-shadow 0.2s;
-  }
-  input:focus, textarea:focus, select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
-  }
-
-  textarea {
-    resize: vertical;
-  }
-
-  .full {
-    grid-column: 1/-1;
-  }
-
-  .btn {
-    padding: 10px 14px;
-    border-radius: 10px;
-    border: none;
-    background: var(--primary);
-    color: #fff;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-  }
-  .btn:hover {
-    background: #2563eb;
-    transform: translateY(-1px);
-  }
-  .btn:active {
-    transform: translateY(0);
-  }
-  .btn.secondary {
-    background: #f3f4f6;
-    color: var(--accent-light);
-  }
-  .btn.secondary:hover {
-    background: #e5e7eb;
-  }
-
-  .small {
-    padding: 6px 10px;
-    font-size: 13px;
-  }
-
-  .list {
-    margin-top: 20px;
-  }
-
-  /* --- Modern Login List --- */
-  .item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    border-radius: 12px;
-    background: var(--card);
-    box-shadow: 0 2px 8px var(--shadow);
-    margin-bottom: 12px;
-    transition: transform 0.15s, box-shadow 0.2s;
-  }
-
-  .item:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-  }
-
-  .site {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .site h3 {
-    font-size: 15px;
-    font-weight: 600;
-    margin: 0;
-    color: var(--accent-light);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .site p {
-    font-size: 13px;
-    color: var(--muted);
-    margin: 2px 0 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .site p a {
-    color: var(--primary);
-    text-decoration: none;
-  }
-
-  .site p a:hover {
-    text-decoration: underline;
-  }
-
-  /* Password dots */
-  .pw-span {
-    font-family: monospace;
-    letter-spacing: 2px;
-    margin-right: 6px;
-    color: var(--muted);
-  }
-
-  /* Action buttons as icons */
-  .actions button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px 12px;       /* pill-style padding */
-    border-radius: 8px;      /* pill-like corners */
-    border: none;
-    background: #f3f4f6;     /* light gray background */
-    color: var(--accent-light);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-  }
-
-  .actions button:hover {
-    background: #e5e7eb;
-    transform: translateY(-1px);
-  }
-
-  .actions button:active {
-    transform: translateY(0);
-  }
-
-  /* Optional: primary vs secondary coloring */
-  .actions button.btn {
-    background: var(--primary);
-    color: #fff;
-  }
-  .actions button.btn.secondary {
-    background: #f3f4f6;
-    color: var(--accent-light);
-  }
-
-
-  /* Muted helper text */
-  .muted {
-    color: var(--muted);
-    font-size: 13px;
-  }
-
-  .hint {
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 12px;
-  }
-
-  /* Responsive adjustments */
-  @media (max-width: 640px) {
-    form {
-      grid-template-columns: 1fr;
+    /* fine tuning for smooth look */
+    .sidebar-scroll { scrollbar-width: thin; }
+    .item-divider { border-top: 1px solid rgba(255,255,255,0.03); }
+    .modal-backdrop {
+      background: linear-gradient(180deg, rgba(8,10,12,0.5), rgba(8,10,12,0.6));
+      backdrop-filter: blur(4px);
     }
-    .controls {
-      flex: 1;
-      flex-wrap: wrap;
+    /* light modal overrides for readability */
+    .modal-light { background: white; color: #0b1220; }
+    .modal-light input, .modal-light textarea, .modal-light select {
+      background: #f8fafc;
+      border: 1px solid #e6edf3;
+      color: #0b1220;
     }
-    .item {
-      flex-direction: column;
-      align-items: flex-start;
-      padding: 14px;
+  
+    .cat-active { background: rgba(255,255,255,0.07); border-left: 3px solid rgba(79,152,255,0.8); }
+  
+    .monospace { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; }
+  
+
+  
+    @media (max-width: 760px) {
+  
+      .h-screen.flex { flex-direction: column; }
+
+      /* Off-canvas sidebar */
+      aside {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 280px; /* slightly narrower than desktop w-72 */
+        transform: translateX(-110%); /* hidden by default */
+        transition: transform 220ms ease, box-shadow 220ms ease;
+        z-index: 60;
+        height: 100vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      /* When open on mobile */
+      aside.open {
+        transform: translateX(0);
+        box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+        background: rgba(42,47,51,0.98);
+      }
+
+      /* Backdrop for the sidebar */
+      #sidebarBackdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 55;
+        background: rgba(0,0,0,0.45);
+        backdrop-filter: blur(2px);
+      }
+      #sidebarBackdrop.show { display: block; }
+
+      /* Make header compact on phone */
+      header { padding-left: 12px; padding-right: 12px; }
+      header .flex { align-items: center; }
+
+      /* Expose important controls clearly */
+      #searchMain { display: none; } /* keep search hidden for very small screens */
+      .header-actions { display: flex; gap: 6px; align-items: center; }
+
+      /* Main content padding reduced on phones so things don't overflow horizontally */
+      #listWrap { padding: 12px; }
+
+      /* Modal tweaks */
+      .modal-light { max-width: 95vw; margin: 0 8px; }
+      .modal-light .grid { grid-template-columns: 1fr; } /* stack form fields inside modal */
+
+      /* small tweaks for buttons */
+      .rounded-full { flex-shrink: 0; }
     }
-    .actions {
-      margin-top: 10px;
-    }
-  }
+
+    /* Larger screens keep the original layout (no change needed) */
   </style>
-
 </head>
-<body>
-  <div class="wrap">
-    <header>
-      <h1>Ashtons Password Vault</h1>
-      <div class="controls">
-        <input id="search" type="search" placeholder="Search site/email/note" />
-        <button id="exportBtn" class="btn secondary small">Export</button>
-        <button id="importBtn" class="btn secondary small">Import</button>
+<body class="min-h-screen antialiased text-nordaccent bg-gradient-to-b from-nordbg/95 to-nordbg">
+
+  <div class="h-screen flex">
+    <!-- Sidebar backdrop (mobile) -->
+    <div id="sidebarBackdrop"></div>
+
+    <!-- SIDEBAR -->
+    <aside id="sidebar" class="w-72 bg-nordpanel/95 border-r border-black/20 flex flex-col sidebar-scroll overflow-y-auto p-4">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-gradient-to-br from-nordprimary to-blue-700 rounded-full flex items-center justify-center text-white font-semibold">A</div>
+        <div class="flex-1">
+          <div class="text-sm font-semibold">Ashton</div>
+          <div class="text-xs text-nordmuted">Premium user</div>
+        </div>
+        <button id="settingsBtn" class="p-2 rounded-full hover:bg-white/3" title="Settings">
+          <svg class="w-5 h-5 text-nordmuted" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z"/><path stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09c.7 0 1.33-.38 1.51-1a1.65 1.65 0 00-.33-1.82L3.3 4.7A2 2 0 016.13 1.87l.06.06c.45.45 1.05.69 1.69.69.3 0 .6-.04.88-.12A1.65 1.65 0 0110 1h4c.4 0 .77.12 1.09.32.28.08.58.12.88.12.64 0 1.24-.24 1.69-.69l.06-.06A2 2 0 0120.7 3.3l-.06.06a1.65 1.65 0 00-.33 1.82c.16.6.8 1 1.51 1H21a2 2 0 010 4h-.09c-.7 0-1.33.38-1.51 1z"/></svg>
+        </button>
       </div>
-    </header>
 
-    <section class="card">
-      <form id="entryForm">
-        <div>
-          <label for="title">Name / Site</label>
-          <input id="title" required placeholder="e.g. Gmail, Work login" />
-        </div>
-        <div>
-          <label for="url">URL</label>
-          <input id="url" placeholder="https://" />
-        </div>
-        <div>
-          <label for="email">Email / Username</label>
-          <input id="email" placeholder="you@example.com" />
-        </div>
-        <div>
-          <label for="password">Password</label>
-          <div style="display:flex;gap:6px">
-            <input id="password" placeholder="password" />
-            <button type="button" id="gen" class="btn secondary small">Gen</button>
+      <div class="relative mb-4">
+        <input id="sidebarSearch" type="search" placeholder="Search (⌘/Ctrl+F)" class="w-full bg-black/10 placeholder-nordmuted text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-nordprimary"/>
+      </div>
+
+      <nav class="mb-4">
+        <div class="text-xs uppercase text-nordmuted font-semibold mb-2 px-2">Categories</div>
+        <ul class="space-y-1">
+          <li class="px-2">
+            <button data-cat="All" id="cat-All" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg cat-active">
+              <svg class="w-5 h-5 text-nordmuted" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="4" stroke="currentColor" stroke-width="1.2"/></svg>
+              <span class="flex-1">All Items</span>
+              <span id="countAll" class="text-xs text-nordmuted">0</span>
+            </button>
+          </li>
+          <li class="px-2">
+            <button data-cat="Passkeys" id="cat-Passkeys" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/2">
+              <svg class="w-5 h-5 text-nordmuted" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-width="1.2" d="M3 12h18"/></svg>
+              Passkeys
+            </button>
+          </li>
+          <li class="px-2">
+            <button data-cat="Logins" id="cat-Logins" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/2">
+              <svg class="w-5 h-5 text-nordmuted" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-width="1.2" d="M12 5v14M5 12h14"/></svg>
+              Logins
+            </button>
+          </li>
+          <li class="px-2">
+            <button data-cat="Wifi" id="cat-Wifi" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/2">
+              <svg class="w-5 h-5 text-nordmuted" viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="16" height="12" rx="2" stroke="currentColor" stroke-width="1.2"/></svg>
+              Wifi
+            </button>
+          </li>
+          <li class="px-2">
+            <button data-cat="Personal Info" id="cat-Personal Info" class="w-full text-left flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/2">
+              <svg class="w-5 h-5 text-nordmuted" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-width="1.2" d="M12 3v18M3 12h18"/></svg>
+              Personal Info
+            </button>
+          </li>
+        </ul>
+      </nav>
+
+      <div class="mt-auto text-xs text-nordmuted px-2">
+        <div class="mb-3">Tools</div>
+        <ul class="space-y-2">
+          <li class="flex items-center justify-between"><span>Password Generator</span><button id="sidebarGen" class="px-2 py-1 text-xs rounded bg-white/3">Open</button></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 flex flex-col">
+      <!-- TOP BAR -->
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between px-4 py-4 border-b border-black/20 gap-3">
+      <div class="flex items-center gap-4 flex-wrap">
+          <!-- Mobile hamburger (visible on small screens only) -->
+          <button id="hamburger" class="md:hidden p-2 mr-2 rounded bg-white/5" aria-label="Open menu" title="Menu">
+            <!-- simple hamburger icon -->
+            <svg class="w-5 h-5 text-nordmuted" viewBox="0 0 24 24" fill="none">
+              <path stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M3 12h18M3 17h18"/>
+            </svg>
+          </button>
+
+          <h1 class="text-2xl font-semibold tracking-tight" id="headingTitle">All Items</h1>
+          <div class="text-sm text-nordmuted">Title</div>
+
+          <!-- Sort dropdown -->
+          <div class="relative">
+            <button id="sortBtn" class="ml-4 text-sm text-nordmuted px-3 py-1 rounded-lg bg-black/6 hover:bg-black/9 flex items-center gap-2">
+              <span id="sortLabel">A–Z</span>
+              <svg class="w-4 h-4 text-nordmuted" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-width="1.4" d="M6 9l6 6 6-6"/></svg>
+            </button>
+
+            <!-- dropdown menu -->
+            <div id="sortMenu" class="hidden absolute right-0 mt-2 w-44 bg-white border border-black rounded-lg shadow-lg p-2">
+              <button data-sort="az" class="block w-full text-left px-3 py-2 rounded hover:bg-white/3 border border-black-200">A – Z</button>
+              <button data-sort="za" class="block w-full text-left px-3 py-2 rounded hover:bg-white/3 border border-black-200">Z – A</button>
+              <button data-sort="date" class="block w-full text-left px-3 py-2 rounded hover:bg-white/3 border border-black-200">Last Updated</button>
+            </div>
           </div>
+
         </div>
 
-        <div class="full">
-          <label for="note">Note (optional)</label>
-          <textarea id="note" rows="2" placeholder="anything you want to remember"></textarea>
+
+        <button id="tokenBtn" class="px-4 py-2 rounded-full border border-white/6 text-sm hover:bg-white/3 hidden">Set Token</button>
+
+
+        <div class="flex items-center gap-3 flex-wrap">
+          <button id="syncBtn" class="px-4 py-2 rounded-full border border-white/6 text-sm hover:bg-white/3">Sync</button>
+          <input id="searchMain" type="search" placeholder="Search site/email/note" class="hidden md:inline-block w-72 bg-black/10 placeholder-nordmuted text-sm rounded-lg py-2 px-3 focus:outline-none focus:ring-1 focus:ring-nordprimary"/>
+          <button id="exportBtn" class="px-4 py-2 rounded-full border border-white/6 text-sm hover:bg-white/3">Export</button>
+          <button id="importBtn" class="px-4 py-2 rounded-full border border-white/6 text-sm hover:bg-white/3">Import</button>
+          <button id="addItemBtn" class="px-4 py-2 rounded-full bg-nordglass border border-white/6 text-sm hover:bg-white/5">Add Item</button>
         </div>
+      </header>
 
-        <div>
-          <label>&nbsp;</label>
-          <div style="display:flex;gap:8px">
-            <button id="save" class="btn">Add</button>
-            <button id="clear" type="button" class="btn secondary">Clear</button>
-            <div style="flex:1"></div>
-            <label class="muted" style="align-self:center">Stored: <span id="count">0</span></label>
-          </div>
+      <!-- LIST -->
+      <section id="listWrap" class="flex-1 overflow-auto p-8">
+        <div id="list" class="space-y-4 rounded-lg">
+          <!-- items inserted here by JS -->
         </div>
-      </form>
-
-      <div class="hint">Tip: This stores data locally on this device (localStorage). If you open this file on another device, export and import the JSON to move your data.</div>
-    </section>
-
-    <section class="list" id="list"></section>
+      </section>
+    </main>
   </div>
 
+  <!-- Floating Add / Modal form (light themed) -->
+  <div id="modal" class="fixed inset-0 hidden items-center justify-center z-50">
+    <div id="modalBackdrop" class="absolute inset-0 modal-backdrop"></div>
+    <div class="relative w-full max-w-2xl mx-4 modal-light rounded-2xl p-6 z-10">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-semibold">Add / Edit Password</h2>
+          <p class="text-sm text-nordmuted">Encrypted in Github. Keep your token secure.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="closeModal" class="p-2 rounded hover:bg-slate-100/60" title="Close">
+            <svg class="w-5 h-5 text-slate-700" viewBox="0 0 24 24" fill="none"><path stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <form id="entryForm" class="mt-4 grid grid-cols-2 gap-4">
+        <div>
+          <label class="text-xs text-slate-600">Name / Site</label>
+          <input id="title" required placeholder="e.g. Gmail, Work login" class="mt-1 w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-nordprimary"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-600">URL</label>
+          <input id="url" placeholder="https://" class="mt-1 w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-nordprimary"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-600">Email / Username</label>
+          <input id="email" placeholder="you@example.com" class="mt-1 w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-nordprimary"/>
+        </div>
+        <div>
+          <label class="text-xs text-slate-600">Password</label>
+          <div class="mt-1 flex gap-2">
+            <input id="password" placeholder="password" class="flex-1 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-nordprimary"/>
+            <button type="button" id="gen" class="px-3 py-2 rounded-lg bg-slate-100">Gen</button>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs text-slate-600">Category</label>
+          <select id="category" class="mt-1 w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-nordprimary">
+            <option value="Passkeys">Passkeys</option>
+            <option value="Logins" selected>Logins</option>
+            <option value="Wifi">Wifi</option>
+            <option value="Personal Info">Personal Info</option>
+          </select>
+        </div>
+
+        <div class="col-span-2">
+          <label class="text-xs text-slate-600">Note (optional)</label>
+          <textarea id="note" rows="3" placeholder="anything you want to remember" class="mt-1 w-full rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-nordprimary"></textarea>
+        </div>
+
+        <div class="col-span-1">
+          <div class="mt-2 flex items-center gap-2">
+            <button id="save" class="px-4 py-2 rounded-lg bg-nordprimary text-black">Add</button>
+            <button id="clear" type="button" class="px-4 py-2 rounded-lg bg-white/5">Clear</button>
+          </div>
+        </div>
+
+        <div class="col-span-1 flex items-center justify-end">
+          <div class="text-sm text-nordmuted">Stored: <span id="count">0</span></div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- hidden file input -->
   <input id="fileInput" type="file" accept="application/json" style="display:none" />
 
 <script>
-  // CONFIG: change these to match your repo
+  // --- CONFIG ---
   const GITHUB_USER = 'ab23223';
   const GITHUB_REPO = 'passwordvault';
-  const GITHUB_BRANCH = 'main'; // usually main or master
-
-  let GITHUB_TOKEN = null; // will ask once per session
-  let GITHUB_SHA = null;   // store the SHA of vault-data.json
-
+  const GITHUB_BRANCH = 'test';
   const VAULT_FILE_PATH = 'vault-data.json';
 
-  // Elements
+  let GITHUB_TOKEN = null;
+  let GITHUB_SHA = null;
+
+  // Form & UI elements
   const form = document.getElementById('entryForm');
   const titleEl = document.getElementById('title');
   const urlEl = document.getElementById('url');
   const emailEl = document.getElementById('email');
   const passwordEl = document.getElementById('password');
   const noteEl = document.getElementById('note');
+  const categoryEl = document.getElementById('category');
+
   const listEl = document.getElementById('list');
   const countEl = document.getElementById('count');
-  const searchEl = document.getElementById('search');
+  const searchMain = document.getElementById('searchMain');
+  const sidebarSearch = document.getElementById('sidebarSearch');
+
   const genBtn = document.getElementById('gen');
   const exportBtn = document.getElementById('exportBtn');
   const importBtn = document.getElementById('importBtn');
   const fileInput = document.getElementById('fileInput');
   const clearBtn = document.getElementById('clear');
+  const addItemBtn = document.getElementById('addItemBtn');
+  const sidebarGen = document.getElementById('sidebarGen');
 
+  const modal = document.getElementById('modal');
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  const closeModal = document.getElementById('closeModal');
+
+  const sortBtn = document.getElementById('sortBtn');
+  const sortMenu = document.getElementById('sortMenu');
+  const sortLabel = document.getElementById('sortLabel');
+
+  // sidebar category buttons
+  const sidebarBtns = Array.from(document.querySelectorAll('button[data-cat]'));
+  const catButtons = {
+    All: document.getElementById('cat-All'),
+    Passkeys: document.getElementById('cat-Passkeys'),
+    Logins: document.getElementById('cat-Logins'),
+    Wifi: document.getElementById('cat-Wifi'),
+    "Personal Info": document.getElementById('cat-Personal Info')
+  };
+
+  // app state
   let entries = [];
   let editId = null;
+  let activeCategory = 'All'; // All | Passkeys | Logins | Wifi | Personal Info
+  let sortMode = 'az'; // 'az' | 'za' | 'date' ; default A–Z => 'az'
+  sortLabel.textContent = 'A–Z';
 
   init();
 
-  async function init() {
-      GITHUB_TOKEN = localStorage.getItem('vaultGitHubToken');
+  // ---------------- INIT ----------------
+  async function init(){
+    // pull token (same UX as before)
+    GITHUB_TOKEN = localStorage.getItem('vaultGitHubToken');
+    if(!GITHUB_TOKEN){
+      GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
+      if(!GITHUB_TOKEN){ alert('Vault cannot load without token'); return; }
+      localStorage.setItem('vaultGitHubToken', GITHUB_TOKEN);
+    }
 
-      if(!GITHUB_TOKEN) {
-          GITHUB_TOKEN = prompt('Enter your GitHub Personal Access Token (repo scope)');
-          if(!GITHUB_TOKEN){ 
-              alert('Vault cannot load without token'); 
-              return; 
-          }
-          localStorage.setItem('vaultGitHubToken', GITHUB_TOKEN);
-      }
+    // wire up sidebar buttons
+    Object.keys(catButtons).forEach(cat=>{
+      const btn = catButtons[cat];
+      if(!btn) return;
+      btn.addEventListener('click', ()=>{ setActiveCategory(cat); });
+    });
 
-      try {
-          await loadVault();
-      } catch(err) {
-          alert('Failed to load vault. Please re-enter your GitHub token.');
-          localStorage.removeItem('vaultGitHubToken');
-          location.reload(); // forces prompt again
-      }
+    // wire up sort menu items
+    Array.from(sortMenu.querySelectorAll('button[data-sort]')).forEach(b=>{
+      b.addEventListener('click', (ev)=>{
+        const mode = ev.currentTarget.dataset.sort;
+        setSortMode(mode);
+        sortMenu.classList.add('hidden');
+      });
+    });
 
-      render();
+    // other bindings
+    addItemBtn.addEventListener('click', openModal);
+    closeModal.addEventListener('click', closeModalFn);
+    modalBackdrop.addEventListener('click', closeModalFn);
+    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeModalFn(); });
+
+    form.addEventListener('submit', e=>{ e.preventDefault(); saveEntry(); });
+    genBtn.addEventListener('click', ()=>{ passwordEl.value = generatePassword(14); passwordEl.focus(); });
+    sidebarGen.addEventListener('click', ()=>{ openModal(); passwordEl.value = generatePassword(14); });
+
+    clearBtn.addEventListener('click', ()=>{ form.reset(); editId=null; document.getElementById('save').textContent='Add'; });
+
+    [searchMain, sidebarSearch].forEach(inp => { if(inp) inp.addEventListener('input', render); });
+
+    exportBtn.addEventListener('click', exportEntries);
+    if(importBtn) importBtn.addEventListener('click', ()=>fileInput.click());
+    fileInput.addEventListener('change', handleFileImport);
+
+    // sort dropdown toggle
+    sortBtn.addEventListener('click', ()=>{ sortMenu.classList.toggle('hidden'); });
+
+    // ctrl/cmd+F focus
+    window.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){ e.preventDefault(); if(searchMain){ searchMain.focus(); searchMain.select(); } else if(sidebarSearch){ sidebarSearch.focus(); sidebarSearch.select(); } } });
+
+    // load vault
+    try { await loadVault(); } catch(err){ console.warn('loadVault failed',err); }
+    updateCategoryCounts();
+    applySort(); // initial sort (A–Z)
+    render();
+
+    // auto reload
+    setInterval(loadVault, 30000);
   }
 
 
-
-  form.addEventListener('submit', e => { e.preventDefault(); saveEntry(); });
-  genBtn.addEventListener('click', () => { passwordEl.value = generatePassword(14); passwordEl.focus(); });
-  clearBtn.addEventListener('click', () => { form.reset(); editId=null; document.getElementById('save').textContent='Add'; });
-  searchEl.addEventListener('input', render);
-  exportBtn.addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download='vault-backup.json'; a.click();
-    URL.revokeObjectURL(url);
-  });
-  importBtn.addEventListener('click', ()=>fileInput.click());
-  fileInput.addEventListener('change',(e)=>{
-    const file=e.target.files[0]; if(!file) return;
-    const reader=new FileReader();
-    reader.onload=()=>{
-      try{ const data=JSON.parse(reader.result); if(!Array.isArray(data)) throw 0; entries=data; saveVault(); render(); alert('Imported '+data.length+' entries.'); }
-      catch{ alert('Invalid file'); }
-    };
-    reader.readAsText(file); fileInput.value='';
-  });
-
-  // LOAD vault from GitHub
+  // ---------------- GITHUB LOAD / SAVE ----------------//
+  // --- Improved loadVault ---
   async function loadVault(){
     try{
+      if(!GITHUB_TOKEN) throw new Error('Missing GitHub token (not signed in on this device).');
       const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`,{
-        headers:{Authorization:'token '+GITHUB_TOKEN}
+        headers:{ Authorization: 'token ' + GITHUB_TOKEN }
       });
-      if(!resp.ok) throw new Error('Failed to fetch vault');
+      if(resp.status === 401 || resp.status === 403){
+        throw new Error('Unauthorized: check your token scopes (repo) or re-enter token on this device.');
+      }
+      if(resp.status === 404){
+        GITHUB_SHA = null;
+        entries = [];
+        return entries;
+      }
+      if(!resp.ok) {
+        const txt = await resp.text().catch(()=>resp.statusText);
+        throw new Error('Failed to fetch vault: ' + txt);
+      }
       const data = await resp.json();
       GITHUB_SHA = data.sha;
       const content = atob(data.content.replace(/\n/g,''));
       entries = JSON.parse(content);
-    }catch(err){ entries=[]; console.warn('Could not load vault',err); }
+      return entries;
+    }catch(err){
+      console.warn('loadVault error', err);
+      showToast(err.message || 'Could not load vault');
+      entries = entries || [];
+      return entries;
+    }
   }
 
-  // SAVE vault to GitHub
-  // SAVE vault to GitHub (works even if file doesn't exist yet)
-    async function saveVault(){
+  // --- Improved saveVault ---
+  async function saveVault(){
     try{
-        const content = btoa(JSON.stringify(entries,null,2));
-        const body = {
-          message: 'Update vault',
-          content,
-          sha: GITHUB_SHA,
+      if(!GITHUB_TOKEN) throw new Error('Missing GitHub token (not signed in on this device).');
+
+      // fetch latest SHA (if any)
+      try {
+        const head = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}?ref=${GITHUB_BRANCH}`, {
+          headers: { Authorization: 'token ' + GITHUB_TOKEN }
+        });
+        if(head.ok){
+          const dataHead = await head.json();
+          GITHUB_SHA = dataHead.sha;
+        } else if(head.status === 404) {
+          GITHUB_SHA = null;
+        } else if(head.status === 401 || head.status === 403){
+          throw new Error('Unauthorized: invalid token or missing repo access.');
+        } else {
+          GITHUB_SHA = GITHUB_SHA || null;
+        }
+      } catch (exHead) {
+        console.warn('Could not get latest SHA, proceeding with existing GITHUB_SHA', exHead);
+      }
+
+      const content = btoa(JSON.stringify(entries,null,2));
+      const body = {
+        message: 'Update vault',
+        content,
+        branch: GITHUB_BRANCH,
+        committer: { name: 'Vault Bot', email: 'bot@example.com' },
+        author: { name: 'Vault Bot', email: 'bot@example.com' }
+      };
+      if(GITHUB_SHA) body.sha = GITHUB_SHA;
+
+      const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
+        method:'PUT',
+        headers:{ Authorization: 'token ' + GITHUB_TOKEN, 'Content-Type':'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if(resp.ok){
+        const data = await resp.json();
+        GITHUB_SHA = data.content.sha;
+        console.log('Vault saved successfully ✅');
+        updateCategoryCounts();
+        showToast('Saved');
+        return true;
+      }
+
+      const text = await resp.text().catch(()=>null);
+      if(resp.status === 409 || (text && /merge/i.test(text))) {
+        console.warn('Conflict detected when saving — fetching latest and retrying once');
+        await loadVault();
+        const retryBody = {
+          message: 'Update vault (retry after conflict)',
+          content: btoa(JSON.stringify(entries,null,2)),
+          branch: GITHUB_BRANCH,
           committer: { name: 'Vault Bot', email: 'bot@example.com' },
           author: { name: 'Vault Bot', email: 'bot@example.com' }
         };
-
-        
-        if(GITHUB_SHA) body.sha = GITHUB_SHA; // only send SHA if file exists
-
-        const resp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
-        method:'PUT',
-        headers:{Authorization:'token '+GITHUB_TOKEN,'Content-Type':'application/json'},
-        body:JSON.stringify(body)
+        if(GITHUB_SHA) retryBody.sha = GITHUB_SHA;
+        const retryResp = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/${VAULT_FILE_PATH}`,{
+          method:'PUT',
+          headers:{ Authorization: 'token ' + GITHUB_TOKEN, 'Content-Type':'application/json' },
+          body: JSON.stringify(retryBody)
         });
-
-        if(!resp.ok){
-        const text = await resp.text();
-        throw new Error(text || 'Failed to save vault');
+        if(retryResp.ok){
+          const data2 = await retryResp.json();
+          GITHUB_SHA = data2.content.sha;
+          showToast('Saved (after resolving)');
+          return true;
+        } else {
+          const t2 = await retryResp.text().catch(()=>retryResp.statusText);
+          throw new Error('Retry failed: ' + t2);
         }
+      }
 
-        const data = await resp.json();
-        GITHUB_SHA = data.content.sha; // store SHA for next update
-        console.log('Vault saved successfully ✅');
+      throw new Error(text || resp.statusText || 'Failed to save vault');
     }catch(err){
-        alert('Error saving vault: '+err.message);
-        console.error(err);
+      console.error('saveVault error', err);
+      showToast('Save failed: ' + (err.message||err));
+      alert('Error saving vault: ' + (err.message||err));
+      return false;
     }
-    }
+  }
 
 
-  // SAVE a single entry
+  // ---------------- EXPORT / IMPORT ----------------
+  function exportEntries(){
+    const blob = new Blob([JSON.stringify(entries,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='vault-backup.json'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleFileImport(e){
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const data=JSON.parse(reader.result);
+        if(!Array.isArray(data)) throw 0;
+        entries=data;
+        saveVault();
+        render();
+        alert('Imported '+data.length+' entries.');
+      }catch{
+        alert('Invalid file');
+      }
+    };
+    reader.readAsText(file); fileInput.value='';
+  }
+
+  // ---------------- CRUD ----------------
   async function saveEntry(){
     const title = titleEl.value.trim(); if(!title){ alert('Please add a name/site'); return; }
-    const item = { id: editId||cryptoRandomId(), title, url:urlEl.value.trim(), email:emailEl.value.trim(), password:passwordEl.value, note:noteEl.value.trim(), updated:Date.now() };
-    if(editId){ const i = entries.findIndex(x=>x.id===editId); if(i>=0) entries[i]=item; editId=null; document.getElementById('save').textContent='Add'; }
-    else entries.unshift(item);
-    sortEntries();
+    // category value from dropdown
+    const category = (categoryEl.value || 'Logins');
+    const item = { id: editId||cryptoRandomId(), title, url:urlEl.value.trim(), email:emailEl.value.trim(), password:passwordEl.value, note:noteEl.value.trim(), category, updated:Date.now() };
+
+    if(editId){
+      const i = entries.findIndex(x=>x.id===editId);
+      if(i>=0) entries[i]=item;
+      editId = null;
+      document.getElementById('save').textContent='Add';
+    } else {
+      entries.unshift(item);
+    }
+
+    applySort();
     form.reset();
     await saveVault();
     render();
-
+    closeModalFn();
   }
 
-  // DELETE an entry
   async function deleteEntry(id){
+    if(!confirm('Delete this entry?')) return;
     entries = entries.filter(x=>x.id!==id);
     await saveVault();
     render();
   }
 
-  function sortEntries() {
-    entries.sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()));
+  function populateFormForEdit(e){
+    openModal();
+    titleEl.value=e.title||'';
+    urlEl.value=e.url||'';
+    emailEl.value=e.email||'';
+    passwordEl.value=e.password||'';
+    noteEl.value=e.note||'';
+    categoryEl.value = e.category || 'Logins';
+    editId=e.id;
+    document.getElementById('save').textContent='Save';
   }
 
+  // ---------------- SORT & FILTER ----------------
+  function applySort(){
+    if(sortMode === 'az'){
+      entries.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
+      sortLabel.textContent = 'A–Z';
+    } else if(sortMode === 'za'){
+      entries.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
+      sortLabel.textContent = 'Z–A';
+    } else if(sortMode === 'date'){
+      entries.sort((a,b)=> (b.updated||0) - (a.updated||0));
+      sortLabel.textContent = 'Last Updated';
+    }
+  }
 
-  // RENDER UI
+  function setSortMode(mode){
+    sortMode = mode;
+    applySort();
+    render();
+  }
+
+  function setActiveCategory(cat){
+    activeCategory = cat;
+    // UI: heading and selected highlight
+    document.getElementById('headingTitle').textContent = cat === 'All' ? 'All Items' : cat;
+    // remove active class from all
+    Object.values(catButtons).forEach(b => { if(b) b.classList.remove('cat-active'); });
+    const btn = catButtons[cat];
+    if(btn) btn.classList.add('cat-active');
+    render();
+  }
+
+  // ---------------- RENDER ----------------
   function render(){
-    const q = searchEl.value.trim().toLowerCase();
-    listEl.innerHTML='';
-    const filtered = entries
-    .filter(e => !q || (e.title + e.email + e.note + e.url).toLowerCase().includes(q))
-    .sort((a, b) => a.title.toLowerCase().localeCompare(b.title.toLowerCase()));
-    countEl.textContent=entries.length;
-    if(filtered.length===0){ listEl.innerHTML='<div class="muted" style="padding:10px">No entries yet.</div>'; return; }
+  const q = ((searchMain && searchMain.value) || (sidebarSearch && sidebarSearch.value) || '').trim().toLowerCase();
+  listEl.innerHTML='';
 
-    filtered.forEach(e=>{
-      const div=document.createElement('div'); div.className='item';
-      const site=document.createElement('div'); site.className='site';
-      const h=document.createElement('h3'); h.textContent=e.title; site.appendChild(h);
-      const p=document.createElement('p'); p.innerHTML=(e.email?escapeHtml(e.email)+' • ':'')+(e.url?('<a href="'+escapeHtml(e.url)+'" target="_blank" rel="noopener">'+shortUrl(e.url)+'</a>'):'')+(e.note?('<br><span class="muted">'+escapeHtml(e.note)+'</span>'):'');
-      site.appendChild(p);
-
-      const actions=document.createElement('div'); actions.className='actions';
-
-      const pwSpan=document.createElement('span'); pwSpan.className='muted'; pwSpan.style.marginRight='6px'; pwSpan.textContent='••••••';
-      let showing=false;
-      const pwBtn=document.createElement('button'); pwBtn.className='btn small'; pwBtn.textContent='Show';
-      pwBtn.addEventListener('click', ()=>{ showing=!showing; pwSpan.textContent=showing?e.password:'••••••'; pwBtn.textContent=showing?'Hide':'Show'; });
-
-      const copyBtn=document.createElement('button'); copyBtn.className='btn secondary small'; copyBtn.textContent='Copy';
-      copyBtn.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(e.password||''); alert('Copied'); }catch{ prompt('Copy manually',e.password||''); } });
-
-      const editBtn=document.createElement('button'); editBtn.className='btn small'; editBtn.textContent='Edit';
-      editBtn.addEventListener('click', ()=>{ populateFormForEdit(e); });
-
-      const delBtn=document.createElement('button'); delBtn.className='btn secondary small'; delBtn.textContent='Delete';
-      delBtn.addEventListener('click', ()=>{ if(confirm('Delete "'+e.title+'"?')) deleteEntry(e.id); });
-
-      actions.appendChild(pwSpan); actions.appendChild(pwBtn); actions.appendChild(copyBtn); actions.appendChild(editBtn); actions.appendChild(delBtn);
-
-      div.appendChild(site); div.appendChild(actions);
-      listEl.appendChild(div);
-    });
+  // apply filtering by category
+  let filtered = entries.slice();
+  if(activeCategory !== 'All'){
+    filtered = filtered.filter(e => (e.category || '') === activeCategory);
   }
 
-  function populateFormForEdit(e){ titleEl.value=e.title||''; urlEl.value=e.url||''; emailEl.value=e.email||''; passwordEl.value=e.password||''; noteEl.value=e.note||''; editId=e.id; document.getElementById('save').textContent='Save'; window.scrollTo({top:0,behavior:'smooth'}); }
+  // apply search filter
+  filtered = filtered.filter(e => {
+    if(!q) return true;
+    return ( (e.title||'') + ' ' + (e.email||'') + ' ' + (e.note||'') + ' ' + (e.url||'') ).toLowerCase().includes(q);
+  });
 
+  // stable sorting
+  if(sortMode === 'az') filtered.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
+  else if(sortMode === 'za') filtered.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
+  else if(sortMode === 'date') filtered.sort((a,b)=> (b.updated||0) - (a.updated||0));
+
+  countEl.textContent = entries.length;
+  updateCategoryCounts();
+
+  if(filtered.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'text-nordmuted p-4 rounded-lg';
+    empty.textContent = 'No entries yet.';
+    listEl.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach(e=>{
+    const row = document.createElement('div');
+    row.className = 'flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-xl bg-white shadow-sm border border-black/10 hover:-translate-y-0.5 hover:shadow-lg hover:border-blue-400/40 transition-all duration-200 ease-in-out';
+
+
+
+    const left = document.createElement('div');
+    left.className = 'flex items-center gap-4 min-w-0 flex-1';
+
+    const logo = document.createElement('div');
+    logo.className = 'w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0';
+    const logoText = document.createElement('div');
+    logoText.className = 'text-black font-semibold';
+    logoText.textContent = (e.title ? e.title.charAt(0).toUpperCase() : '?');
+    logo.appendChild(logoText);
+
+    const site = document.createElement('div');
+    site.className = 'min-w-0 flex-1 flex flex-col';
+
+    const h = document.createElement('div');
+    h.className = 'text-sm font-semibold truncate';  // title
+    h.textContent = e.title;
+
+    const p = document.createElement('div');
+    p.className = 'text-xs text-nordmuted truncate mt-0.5';  // meta (email, url, note, category)
+    const parts = [];
+    if(e.email) parts.push(escapeHtml(e.email));
+    if(e.url) parts.push(shortUrl(e.url));
+    if(e.note) parts.push('Note');
+    if(e.category) parts.push('['+e.category+']');
+    p.innerHTML = parts.map(part => `<span class="truncate block w-full" title="${part}">${part}</span>`).join(' • ');
+
+
+    site.appendChild(h);
+    site.appendChild(p);
+    left.appendChild(logo);
+    left.appendChild(site);
+
+    // Right container
+    const right = document.createElement('div');
+    right.className = 'flex flex-col md:flex-row items-end md:items-center gap-2 md:gap-3 flex-shrink-0';
+
+
+    const last = document.createElement('div');
+    last.className = 'text-xs text-nordmuted text-right w-28';
+    last.textContent = timeAgo(e.updated);
+
+    const actions = document.createElement('div');
+    actions.className = 'flex flex-wrap gap-2 items-center';
+
+    const pwSpan = document.createElement('span');
+    pwSpan.className = 'text-xs text-nordmuted monospace';
+    pwSpan.textContent = '••••••';
+
+    let showing = false;
+    const pwBtn = document.createElement('button');
+    pwBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+    pwBtn.textContent = 'Show';
+    pwBtn.addEventListener('click', ()=>{
+      showing = !showing;
+      pwSpan.textContent = showing ? e.password : '••••••';
+      pwBtn.textContent = showing ? 'Hide' : 'Show';
+    });
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText(e.password||''); showToast('Copied'); }catch{ prompt('Copy manually', e.password||''); }
+    });
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', ()=> populateFormForEdit(e));
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/6';
+    delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', ()=> deleteEntry(e.id));
+
+    actions.appendChild(pwSpan);
+    actions.appendChild(pwBtn);
+    actions.appendChild(copyBtn);
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+
+    right.appendChild(last);
+    right.appendChild(actions);
+
+    row.appendChild(left);
+    row.appendChild(right);
+
+    listEl.appendChild(row);
+  });
+}
+
+  // ---------------- HELPERS ----------------
   function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function shortUrl(u){ try{ return new URL(u).hostname; }catch{return u.length>30?u.slice(0,27)+'...':u; } }
   function cryptoRandomId(){ return 'id-'+Math.random().toString(36).slice(2,10)+Date.now().toString(36).slice(-4); }
   function generatePassword(len){ const sets='abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:,.<>?'; let out=''; const rng=crypto.getRandomValues?crypto.getRandomValues(new Uint32Array(len)):null; for(let i=0;i<len;i++){ const idx=rng?rng[i]%sets.length:Math.floor(Math.random()*sets.length); out+=sets.charAt(idx); } return out; }
 
-  // Ctrl+F shortcut for search
-  window.addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){ e.preventDefault(); searchEl.focus(); searchEl.select(); } });
+  function timeAgo(ts){
+    if(!ts) return '-';
+    const s = Math.floor((Date.now()-ts)/1000);
+    if(s < 60) return s + 's ago';
+    const m = Math.floor(s/60);
+    if(m < 60) return m + 'm ago';
+    const h = Math.floor(m/60);
+    if(h < 24) return h + 'h ago';
+    const d = Math.floor(h/24);
+    return d + 'd ago';
+  }
 
-  setInterval(loadVault, 30000);
+  // simple toast
+  function showToast(msg){
+    const t = document.createElement('div');
+    t.className = 'fixed bottom-8 right-8 bg-black/70 text-white px-4 py-2 rounded-md z-60';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(()=>{ t.remove(); }, 1500);
+  }
+
+  // modal open/close
+  function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); setTimeout(()=> titleEl.focus(),80); }
+  function closeModalFn(){ modal.classList.add('hidden'); modal.classList.remove('flex'); form.reset(); editId=null; document.getElementById('save').textContent='Add'; }
+
+  function updateCategoryCounts(){
+    // update All count
+    const allCount = entries.length;
+    const elAll = document.getElementById('countAll');
+    if(elAll) elAll.textContent = allCount;
+  }
+
+  // ensure initial sort and category UI set
+  setActiveCategory('All');
+  setSortMode('az');
+
+  // --- Mobile Sidebar toggle & responsive helpers ---
+  const hamburger = document.getElementById('hamburger');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarBackdropEl = document.getElementById('sidebarBackdrop');
+
+  function openSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.add('open');
+    if (sidebarBackdropEl) sidebarBackdropEl.classList.add('show');
+    // prevent body scroll when sidebar open
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.remove('open');
+    if (sidebarBackdropEl) sidebarBackdropEl.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+  function toggleSidebar() {
+    if (!sidebar) return;
+    if (sidebar.classList.contains('open')) closeSidebar();
+    else openSidebar();
+  }
+
+  if (hamburger) hamburger.addEventListener('click', toggleSidebar);
+  if (sidebarBackdropEl) sidebarBackdropEl.addEventListener('click', closeSidebar);
+
+  // Auto-close sidebar if user picks a category — makes mobile easier
+  document.querySelectorAll('button[data-cat]').forEach(b => {
+    b.addEventListener('click', () => {
+      // small timeout so the click finishes UI changes (optional)
+      setTimeout(closeSidebar, 100);
+    });
+  });
+
+  // Close sidebar automatically when resizing to desktop
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 760) closeSidebar();
+  });
+
+  // Ensure that addItemBtn isn't hidden off-screen on tiny phones:
+  // Move Add Item into a visible region if viewport is narrow (optional)
+  (function ensureAddButtonVisible() {
+    const addBtn = document.getElementById('addItemBtn');
+    if (!addBtn) return;
+    // on very narrow screens, slightly enlarge tap area
+    function adjust() {
+      if (window.innerWidth <= 420) {
+        addBtn.classList.remove('px-4'); addBtn.classList.add('px-3');
+      } else {
+        addBtn.classList.remove('px-3'); addBtn.classList.add('px-4');
+      }
+    }
+    adjust();
+    window.addEventListener('resize', adjust);
+  })();
+
+  // Finally, when modal opens, close the sidebar (so mobile has full screen for modal)
+  const origOpenModal = openModal;
+  window.openModal = function(){
+    closeSidebar();
+    origOpenModal();
+  };
+
+  // run once at startup to ensure correct state (in case token UI was toggled earlier)
+  if (window.innerWidth > 760) closeSidebar(); else closeSidebar();
+
+
+  // ---------- Token & Sync UI ----------
+  const tokenBtn = document.getElementById('tokenBtn');
+  const syncBtn  = document.getElementById('syncBtn');
+
+  function ensureTokenUI(){
+    if(!GITHUB_TOKEN){
+      if(tokenBtn) tokenBtn.style.display = 'inline-block';
+    } else {
+      if(tokenBtn) tokenBtn.style.display = 'none';
+    }
+  }
+
+  if(tokenBtn){
+    tokenBtn.addEventListener('click', async ()=>{
+      const t = prompt('Paste your GitHub Personal Access Token (repo scope). It will be stored in browser only.');
+      if(t){
+        localStorage.setItem('vaultGitHubToken', t);
+        GITHUB_TOKEN = t;
+        showToast('Token saved — syncing...');
+        await syncNow();
+        ensureTokenUI();
+      }
+    });
+  }
+
+  if(syncBtn){
+    syncBtn.addEventListener('click', async ()=>{
+      syncBtn.disabled = true;
+      await syncNow();
+      syncBtn.disabled = false;
+    });
+  }
+
+  async function syncNow(){
+    if(!GITHUB_TOKEN){
+      const t = prompt('Paste your GitHub Personal Access Token (repo scope) to sync this device:');
+      if(!t) { showToast('Sync cancelled (no token)'); return; }
+      localStorage.setItem('vaultGitHubToken', t);
+      GITHUB_TOKEN = t;
+    }
+    try{
+      await loadVault();
+      applySort();
+      render();
+      updateCategoryCounts();
+      showToast('Synced');
+    }catch(err){
+      console.warn('syncNow failed', err);
+      showToast('Sync failed: ' + (err.message||err));
+    } finally {
+      ensureTokenUI();
+    }
+  }
+
+  document.addEventListener('visibilitychange', ()=> {
+    if(document.visibilityState === 'visible'){
+      setTimeout(()=> { syncNow(); }, 250);
+    }
+  });
+
+  ensureTokenUI();
+
 
 </script>
 </body>
