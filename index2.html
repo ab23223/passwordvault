@@ -44,19 +44,77 @@
       border: 1px solid #e6edf3;
       color: #0b1220;
     }
-    /* active category style */
+  
     .cat-active { background: rgba(255,255,255,0.07); border-left: 3px solid rgba(79,152,255,0.8); }
-    /* monospace for password dots */
+  
     .monospace { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; }
-    /* small responsive tweaks */
+  
+
+  
     @media (max-width: 760px) {
-      aside { display: none; }
+  
+      .h-screen.flex { flex-direction: column; }
+
+      /* Off-canvas sidebar */
+      aside {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 280px; /* slightly narrower than desktop w-72 */
+        transform: translateX(-110%); /* hidden by default */
+        transition: transform 220ms ease, box-shadow 220ms ease;
+        z-index: 60;
+        height: 100vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      /* When open on mobile */
+      aside.open {
+        transform: translateX(0);
+        box-shadow: 0 8px 30px rgba(2,6,23,0.6);
+        background: rgba(42,47,51,0.98);
+      }
+
+      /* Backdrop for the sidebar */
+      #sidebarBackdrop {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 55;
+        background: rgba(0,0,0,0.45);
+        backdrop-filter: blur(2px);
+      }
+      #sidebarBackdrop.show { display: block; }
+
+      /* Make header compact on phone */
+      header { padding-left: 12px; padding-right: 12px; }
+      header .flex { align-items: center; }
+
+      /* Expose important controls clearly */
+      #searchMain { display: none; } /* keep search hidden for very small screens */
+      .header-actions { display: flex; gap: 6px; align-items: center; }
+
+      /* Main content padding reduced on phones so things don't overflow horizontally */
+      #listWrap { padding: 12px; }
+
+      /* Modal tweaks */
+      .modal-light { max-width: 95vw; margin: 0 8px; }
+      .modal-light .grid { grid-template-columns: 1fr; } /* stack form fields inside modal */
+
+      /* small tweaks for buttons */
+      .rounded-full { flex-shrink: 0; }
     }
+
+    /* Larger screens keep the original layout (no change needed) */
   </style>
 </head>
 <body class="min-h-screen antialiased text-nordaccent bg-gradient-to-b from-nordbg/95 to-nordbg">
 
   <div class="h-screen flex">
+    <!-- Sidebar backdrop (mobile) -->
+    <div id="sidebarBackdrop"></div>
+
     <!-- SIDEBAR -->
     <aside id="sidebar" class="w-72 bg-nordpanel/95 border-r border-black/20 flex flex-col sidebar-scroll overflow-y-auto p-4">
       <div class="flex items-center gap-3 mb-4">
@@ -122,8 +180,16 @@
     <!-- MAIN -->
     <main class="flex-1 flex flex-col">
       <!-- TOP BAR -->
-      <header class="flex items-center justify-between px-8 py-6 border-b border-black/20">
-        <div class="flex items-center gap-6">
+      <header class="flex flex-col md:flex-row md:items-center md:justify-between px-4 py-4 border-b border-black/20 gap-3">
+      <div class="flex items-center gap-4 flex-wrap">
+          <!-- Mobile hamburger (visible on small screens only) -->
+          <button id="hamburger" class="md:hidden p-2 mr-2 rounded bg-white/5" aria-label="Open menu" title="Menu">
+            <!-- simple hamburger icon -->
+            <svg class="w-5 h-5 text-nordmuted" viewBox="0 0 24 24" fill="none">
+              <path stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M3 7h18M3 12h18M3 17h18"/>
+            </svg>
+          </button>
+
           <h1 class="text-2xl font-semibold tracking-tight" id="headingTitle">All Items</h1>
           <div class="text-sm text-nordmuted">Title</div>
 
@@ -238,7 +304,7 @@
   // --- CONFIG ---
   const GITHUB_USER = 'ab23223';
   const GITHUB_REPO = 'passwordvault';
-  const GITHUB_BRANCH = 'main';
+  const GITHUB_BRANCH = 'test';
   const VAULT_FILE_PATH = 'vault-data.json';
 
   let GITHUB_TOKEN = null;
@@ -575,129 +641,133 @@
 
   // ---------------- RENDER ----------------
   function render(){
-    const q = ((searchMain && searchMain.value) || (sidebarSearch && sidebarSearch.value) || '').trim().toLowerCase();
-    listEl.innerHTML='';
-    // apply filtering by category
-    let filtered = entries.slice();
-    if(activeCategory !== 'All'){
-      filtered = filtered.filter(e => (e.category || '') === activeCategory);
-    }
+  const q = ((searchMain && searchMain.value) || (sidebarSearch && sidebarSearch.value) || '').trim().toLowerCase();
+  listEl.innerHTML='';
 
-    // apply search filter
-    filtered = filtered.filter(e => {
-      if(!q) return true;
-      return ( (e.title||'') + ' ' + (e.email||'') + ' ' + (e.note||'') + ' ' + (e.url||'') ).toLowerCase().includes(q);
-    });
-
-    // they are already sorted by applySort() at mutation points, but ensure stable sorting
-    if(sortMode === 'az') filtered.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
-    else if(sortMode === 'za') filtered.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
-    else if(sortMode === 'date') filtered.sort((a,b)=> (b.updated||0) - (a.updated||0));
-
-    countEl.textContent = entries.length;
-    // update All count at sidebar
-    updateCategoryCounts();
-
-    if(filtered.length === 0){
-      const empty = document.createElement('div');
-      empty.className = 'text-nordmuted p-4 rounded-lg';
-      empty.textContent = 'No entries yet.';
-      listEl.appendChild(empty);
-      return;
-    }
-
-    filtered.forEach(e=>{
-      const row = document.createElement('div');
-      row.className = 'flex items-center justify-between gap-4 p-5 rounded-xl bg-white shadow-sm border border-black/10 hover:-translate-y-0.5 hover:shadow-lg hover:border-blue-400/40 transition-all duration-200 ease-in-out';
-
-      const left = document.createElement('div');
-      left.className = 'flex items-center gap-4 min-w-0';
-
-      const logo = document.createElement('div');
-      logo.className = 'w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0';
-      const logoText = document.createElement('div');
-      logoText.className = 'text-black font-semibold';
-      logoText.textContent = (e.title ? e.title.charAt(0).toUpperCase() : '?');
-      logo.appendChild(logoText);
-
-      const site = document.createElement('div');
-      site.className = 'min-w-0';
-
-      const h = document.createElement('div');
-      h.className = 'text-sm font-semibold truncate';
-      h.textContent = e.title;
-
-      const p = document.createElement('div');
-      p.className = 'text-xs text-nordmuted truncate mt-0.5';
-      const parts = [];
-      if(e.email) parts.push(escapeHtml(e.email));
-      if(e.url) parts.push(shortUrl(e.url));
-      if(e.note) parts.push('Note');
-      // include category tag in the meta string
-      if(e.category) parts.push('['+e.category+']');
-      p.innerHTML = parts.join(' • ');
-
-      site.appendChild(h);
-      site.appendChild(p);
-      left.appendChild(logo);
-      left.appendChild(site);
-
-      const right = document.createElement('div');
-      right.className = 'flex items-center gap-3';
-
-      const last = document.createElement('div');
-      last.className = 'text-xs text-nordmuted text-right w-28';
-      last.textContent = timeAgo(e.updated);
-
-      const actions = document.createElement('div');
-      actions.className = 'flex gap-2 items-center';
-
-      const pwSpan = document.createElement('span');
-      pwSpan.className = 'text-xs text-nordmuted monospace';
-      pwSpan.textContent = '••••••';
-
-      let showing = false;
-      const pwBtn = document.createElement('button');
-      pwBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
-      pwBtn.textContent = 'Show';
-      pwBtn.addEventListener('click', ()=>{
-        showing = !showing;
-        pwSpan.textContent = showing ? e.password : '••••••';
-        pwBtn.textContent = showing ? 'Hide' : 'Show';
-      });
-
-      const copyBtn = document.createElement('button');
-      copyBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
-      copyBtn.textContent = 'Copy';
-      copyBtn.addEventListener('click', async ()=>{
-        try{ await navigator.clipboard.writeText(e.password||''); showToast('Copied'); }catch{ prompt('Copy manually', e.password||''); }
-      });
-
-      const editBtn = document.createElement('button');
-      editBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
-      editBtn.textContent = 'Edit';
-      editBtn.addEventListener('click', ()=> populateFormForEdit(e));
-
-      const delBtn = document.createElement('button');
-      delBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/6';
-      delBtn.textContent = 'Delete';
-      delBtn.addEventListener('click', ()=> deleteEntry(e.id));
-
-      actions.appendChild(pwSpan);
-      actions.appendChild(pwBtn);
-      actions.appendChild(copyBtn);
-      actions.appendChild(editBtn);
-      actions.appendChild(delBtn);
-
-      right.appendChild(last);
-      right.appendChild(actions);
-
-      row.appendChild(left);
-      row.appendChild(right);
-
-      listEl.appendChild(row);
-    });
+  // apply filtering by category
+  let filtered = entries.slice();
+  if(activeCategory !== 'All'){
+    filtered = filtered.filter(e => (e.category || '') === activeCategory);
   }
+
+  // apply search filter
+  filtered = filtered.filter(e => {
+    if(!q) return true;
+    return ( (e.title||'') + ' ' + (e.email||'') + ' ' + (e.note||'') + ' ' + (e.url||'') ).toLowerCase().includes(q);
+  });
+
+  // stable sorting
+  if(sortMode === 'az') filtered.sort((a,b)=> (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase()));
+  else if(sortMode === 'za') filtered.sort((a,b)=> (b.title||'').toLowerCase().localeCompare((a.title||'').toLowerCase()));
+  else if(sortMode === 'date') filtered.sort((a,b)=> (b.updated||0) - (a.updated||0));
+
+  countEl.textContent = entries.length;
+  updateCategoryCounts();
+
+  if(filtered.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'text-nordmuted p-4 rounded-lg';
+    empty.textContent = 'No entries yet.';
+    listEl.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach(e=>{
+    const row = document.createElement('div');
+    row.className = 'flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5 rounded-xl bg-white shadow-sm border border-black/10 hover:-translate-y-0.5 hover:shadow-lg hover:border-blue-400/40 transition-all duration-200 ease-in-out';
+
+
+
+    const left = document.createElement('div');
+    left.className = 'flex items-center gap-4 min-w-0 flex-1';
+
+    const logo = document.createElement('div');
+    logo.className = 'w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0';
+    const logoText = document.createElement('div');
+    logoText.className = 'text-black font-semibold';
+    logoText.textContent = (e.title ? e.title.charAt(0).toUpperCase() : '?');
+    logo.appendChild(logoText);
+
+    const site = document.createElement('div');
+    site.className = 'min-w-0 flex-1 flex flex-col';
+
+    const h = document.createElement('div');
+    h.className = 'text-sm font-semibold truncate';  // title
+    h.textContent = e.title;
+
+    const p = document.createElement('div');
+    p.className = 'text-xs text-nordmuted truncate mt-0.5';  // meta (email, url, note, category)
+    const parts = [];
+    if(e.email) parts.push(escapeHtml(e.email));
+    if(e.url) parts.push(shortUrl(e.url));
+    if(e.note) parts.push('Note');
+    if(e.category) parts.push('['+e.category+']');
+    p.innerHTML = parts.map(part => `<span class="truncate block w-full" title="${part}">${part}</span>`).join(' • ');
+
+
+    site.appendChild(h);
+    site.appendChild(p);
+    left.appendChild(logo);
+    left.appendChild(site);
+
+    // Right container
+    const right = document.createElement('div');
+    right.className = 'flex flex-col md:flex-row items-end md:items-center gap-2 md:gap-3 flex-shrink-0';
+
+
+    const last = document.createElement('div');
+    last.className = 'text-xs text-nordmuted text-right w-28';
+    last.textContent = timeAgo(e.updated);
+
+    const actions = document.createElement('div');
+    actions.className = 'flex flex-wrap gap-2 items-center';
+
+    const pwSpan = document.createElement('span');
+    pwSpan.className = 'text-xs text-nordmuted monospace';
+    pwSpan.textContent = '••••••';
+
+    let showing = false;
+    const pwBtn = document.createElement('button');
+    pwBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+    pwBtn.textContent = 'Show';
+    pwBtn.addEventListener('click', ()=>{
+      showing = !showing;
+      pwSpan.textContent = showing ? e.password : '••••••';
+      pwBtn.textContent = showing ? 'Hide' : 'Show';
+    });
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText(e.password||''); showToast('Copied'); }catch{ prompt('Copy manually', e.password||''); }
+    });
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/4';
+    editBtn.textContent = 'Edit';
+    editBtn.addEventListener('click', ()=> populateFormForEdit(e));
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'px-3 py-1 text-xs rounded bg-black/5 hover:bg-white/6';
+    delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', ()=> deleteEntry(e.id));
+
+    actions.appendChild(pwSpan);
+    actions.appendChild(pwBtn);
+    actions.appendChild(copyBtn);
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+
+    right.appendChild(last);
+    right.appendChild(actions);
+
+    row.appendChild(left);
+    row.appendChild(right);
+
+    listEl.appendChild(row);
+  });
+}
 
   // ---------------- HELPERS ----------------
   function escapeHtml(s){ if(!s) return ''; return s.replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -740,6 +810,74 @@
   // ensure initial sort and category UI set
   setActiveCategory('All');
   setSortMode('az');
+
+  // --- Mobile Sidebar toggle & responsive helpers ---
+  const hamburger = document.getElementById('hamburger');
+  const sidebar = document.getElementById('sidebar');
+  const sidebarBackdropEl = document.getElementById('sidebarBackdrop');
+
+  function openSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.add('open');
+    if (sidebarBackdropEl) sidebarBackdropEl.classList.add('show');
+    // prevent body scroll when sidebar open
+    document.body.style.overflow = 'hidden';
+  }
+  function closeSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.remove('open');
+    if (sidebarBackdropEl) sidebarBackdropEl.classList.remove('show');
+    document.body.style.overflow = '';
+  }
+  function toggleSidebar() {
+    if (!sidebar) return;
+    if (sidebar.classList.contains('open')) closeSidebar();
+    else openSidebar();
+  }
+
+  if (hamburger) hamburger.addEventListener('click', toggleSidebar);
+  if (sidebarBackdropEl) sidebarBackdropEl.addEventListener('click', closeSidebar);
+
+  // Auto-close sidebar if user picks a category — makes mobile easier
+  document.querySelectorAll('button[data-cat]').forEach(b => {
+    b.addEventListener('click', () => {
+      // small timeout so the click finishes UI changes (optional)
+      setTimeout(closeSidebar, 100);
+    });
+  });
+
+  // Close sidebar automatically when resizing to desktop
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 760) closeSidebar();
+  });
+
+  // Ensure that addItemBtn isn't hidden off-screen on tiny phones:
+  // Move Add Item into a visible region if viewport is narrow (optional)
+  (function ensureAddButtonVisible() {
+    const addBtn = document.getElementById('addItemBtn');
+    if (!addBtn) return;
+    // on very narrow screens, slightly enlarge tap area
+    function adjust() {
+      if (window.innerWidth <= 420) {
+        addBtn.classList.remove('px-4'); addBtn.classList.add('px-3');
+      } else {
+        addBtn.classList.remove('px-3'); addBtn.classList.add('px-4');
+      }
+    }
+    adjust();
+    window.addEventListener('resize', adjust);
+  })();
+
+  // Finally, when modal opens, close the sidebar (so mobile has full screen for modal)
+  const origOpenModal = openModal;
+  window.openModal = function(){
+    closeSidebar();
+    origOpenModal();
+  };
+
+  // run once at startup to ensure correct state (in case token UI was toggled earlier)
+  if (window.innerWidth > 760) closeSidebar(); else closeSidebar();
+
 
   // ---------- Token & Sync UI ----------
   const tokenBtn = document.getElementById('tokenBtn');
